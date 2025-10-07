@@ -53,6 +53,9 @@ class WhiteboardActivity : AppCompatActivity() {
     // Annotation
     private var annotationTool: AnnotationToolView? = null
 
+    // Track button references for auto-deactivation
+    private val buttonReferences = mutableMapOf<String, MutableList<ImageButton>>()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         makeFullscreen()
@@ -105,12 +108,19 @@ class WhiteboardActivity : AppCompatActivity() {
             RelativeLayout.LayoutParams.MATCH_PARENT
         )
         annotationTool?.layoutParams = layoutParams
-        annotationTool?.elevation = 200f  // High elevation for drawing layer
+        annotationTool?.elevation = 200f
         mainLayout.addView(annotationTool)
 
         annotationTool?.onAnnotationToggle = { isEnabled ->
             val message = if (isEnabled) "Annotation mode enabled" else "Annotation mode disabled"
             Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+
+            // Auto-deactivate draw button when annotation is manually disabled
+            if (!isEnabled) {
+                buttonReferences["draw"]?.forEach { button ->
+                    buttonStateManager.deactivateButtons(button)
+                }
+            }
         }
 
         annotationTool?.onDrawingStateChanged = { isDrawing ->
@@ -151,6 +161,11 @@ class WhiteboardActivity : AppCompatActivity() {
         modelBrowserDrawer = ModelBrowserDrawer(this) { modelData, fullPath ->
             createCustom3DContainer(modelData, fullPath)
         }
+
+        // Listen for drawer dismissal
+        modelBrowserDrawer?.setOnDismissListener {
+            deactivateButtonsByKey("menu")
+        }
     }
 
     private fun setupAiMaster() {
@@ -172,9 +187,34 @@ class WhiteboardActivity : AppCompatActivity() {
 
         // AI Master button (standalone, not in toolbar)
         val aiMasterBtn = findViewById<ImageButton>(R.id.ai_master_btn)
+        registerButton("ai_master", aiMasterBtn)
         buttonStateManager.setupButton(aiMasterBtn) {
             showAiMaster()
         }
+    }
+
+    private fun deactivateButtonsByKey(key: String) {
+        // Close functionality based on key
+        when (key) {
+            "menu" -> {
+                modelBrowserDrawer?.dismiss()
+            }
+        }
+
+        // Deactivate buttons
+        buttonReferences[key]?.forEach { button ->
+            buttonStateManager.deactivateButtons(button)
+        }
+    }
+
+    /**
+     * Register a button with a key for tracking
+     */
+    private fun registerButton(key: String, button: ImageButton) {
+        if (!buttonReferences.containsKey(key)) {
+            buttonReferences[key] = mutableListOf()
+        }
+        buttonReferences[key]?.add(button)
     }
 
     private fun registerButtonPairs(leftToolbar: View, rightToolbar: View) {
@@ -200,92 +240,146 @@ class WhiteboardActivity : AppCompatActivity() {
     private fun setupToolbarButtons(toolbar: View) {
         // Draw button
         val btnDraw = toolbar.findViewById<ImageButton>(R.id.btn_draw)
+        registerButton("draw", btnDraw)
         buttonStateManager.setupButton(btnDraw) { isActive ->
-            annotationTool?.toggleAnnotationMode(isActive)
+            if (isActive) {
+                annotationTool?.toggleAnnotationMode(true)
+            } else {
+                // Ensure annotation mode is turned off when button deactivates
+                if (annotationTool?.isInAnnotationMode() == true) {
+                    annotationTool?.toggleAnnotationMode(false)
+                }
+            }
         }
 
         // AR button
         val btnAr = toolbar.findViewById<ImageButton>(R.id.btn_ar)
-        buttonStateManager.setupButton(btnAr) {
-            toggleCameraWithPermission()
+        registerButton("ar", btnAr)
+        buttonStateManager.setupButton(btnAr) { isActive ->
+            if (isActive) {
+                toggleCameraWithPermission()
+            } else {
+                if (cameraManager.isCameraActive()) {
+                    cameraManager.stopCamera()
+                }
+            }
         }
 
         // Color picker button
         val colorPlate = toolbar.findViewById<ImageButton>(R.id.color_plate)
-        buttonStateManager.setupButton(colorPlate) {
-            popupHandler.showColorPopup(
-                colorPlate,
-                surfaceView,
-                onImagePickRequested = { imagePickerHandler.pickBackgroundImage() }
-            )
+        registerButton("color", colorPlate)
+        buttonStateManager.setupButton(colorPlate) { isActive ->
+            if (isActive) {
+                popupHandler.showColorPopup(
+                    colorPlate,
+                    surfaceView,
+                    onImagePickRequested = { imagePickerHandler.pickBackgroundImage() },
+                    onDismiss = {
+                        // Auto-deactivate when popup closes
+                        deactivateButtonsByKey("color")
+                    }
+                )
+            }
         }
 
         // Load lesson button
         val btnLoadLesson = toolbar.findViewById<ImageButton>(R.id.btn_load_lesson)
-        buttonStateManager.setupButton(btnLoadLesson) {
-            // TODO: Implement load lesson functionality
+        registerButton("lesson", btnLoadLesson)
+        buttonStateManager.setupButton(btnLoadLesson) { isActive ->
+            if (isActive) {
+                // TODO: Implement load lesson functionality
+                // After functionality completes, call: deactivateButtonsByKey("lesson")
+            }
         }
 
         // Menu (3D models) button
         val btnMenu = toolbar.findViewById<ImageButton>(R.id.btn_menu)
+        registerButton("menu", btnMenu)
         buttonStateManager.setupButton(btnMenu) { isActive ->
             if (isActive) {
                 showModelBrowser()
                 annotationTool?.toggleAnnotationMode(false)
-
-                // Deactivate draw buttons on both toolbars
-                val leftToolbar = findViewById<View>(R.id.left_toolbar)
-                val rightToolbar = findViewById<View>(R.id.right_toolbar)
-                val leftDraw = leftToolbar.findViewById<ImageButton>(R.id.btn_draw)
-                val rightDraw = rightToolbar.findViewById<ImageButton>(R.id.btn_draw)
-                buttonStateManager.deactivateButtons(leftDraw, rightDraw)
             } else {
-                showModelBrowser()
+                modelBrowserDrawer?.dismiss()
             }
         }
 
         // Save button
         val btnSave = toolbar.findViewById<ImageButton>(R.id.btn_save)
+        registerButton("save", btnSave)
         buttonStateManager.setupButton(btnSave) { isActive ->
             if (isActive) {
                 popupHandler.showActionOptionsPopup(
                     btnSave,
                     ActionType.SAVE,
-                    onSaveLesson = { /* TODO */ },
-                    onSavePdf = { /* TODO */ }
+                    onSaveLesson = {
+                        // TODO: Implement save
+                        deactivateButtonsByKey("save")
+                    },
+                    onSavePdf = {
+                        // TODO: Implement save PDF
+                        deactivateButtonsByKey("save")
+                    },
+                    onDismiss = {
+                        // Auto-deactivate when popup closes
+                        deactivateButtonsByKey("save")
+                    }
                 )
             }
         }
 
         // Insert button
         val btnInsert = toolbar.findViewById<ImageButton>(R.id.btn_insert)
+        registerButton("insert", btnInsert)
         buttonStateManager.setupButton(btnInsert) { isActive ->
             if (isActive) {
                 popupHandler.showActionOptionsPopup(
                     btnInsert,
                     ActionType.INSERT,
-                    onInsertImage = { imagePickerHandler.pickContainerImage() },
-                    onInsertPdf = { imagePickerHandler.pickContainerPdf() },
+                    onInsertImage = {
+                        imagePickerHandler.pickContainerImage()
+                        deactivateButtonsByKey("insert")
+                    },
+                    onInsertPdf = {
+                        imagePickerHandler.pickContainerPdf()
+                        deactivateButtonsByKey("insert")
+                    },
                     onInsertYoutube = {
                         containerManager.addYouTubeContainer()
+                        deactivateButtonsByKey("insert")
                     },
-                    onInsertWebsite = { containerManager.addWebsiteContainer() }
+                    onInsertWebsite = {
+                        containerManager.addWebsiteContainer()
+                        deactivateButtonsByKey("insert")
+                    },
+                    onDismiss = {
+                        // Auto-deactivate when popup closes without action
+                        deactivateButtonsByKey("insert")
+                    }
                 )
             }
         }
 
         // Settings button
         val btnSetting = toolbar.findViewById<ImageButton>(R.id.btn_setting)
-        buttonStateManager.setupButton(btnSetting) {
-            popupHandler.showContainerManagementMenu(
-                containerManager,
-                onCameraToggle = { toggleCameraWithPermission() },
-                onPauseAll3D = { pauseAll3DRenderingForDrawing() },
-                onResumeAll3D = { resumeAll3DRenderingAfterDrawing() },
-                isCameraActive = cameraManager.isCameraActive()
-            )
+        registerButton("setting", btnSetting)
+        buttonStateManager.setupButton(btnSetting) { isActive ->
+            if (isActive) {
+                popupHandler.showContainerManagementMenu(
+                    containerManager,
+                    onCameraToggle = { toggleCameraWithPermission() },
+                    onPauseAll3D = { pauseAll3DRenderingForDrawing() },
+                    onResumeAll3D = { resumeAll3DRenderingAfterDrawing() },
+                    isCameraActive = cameraManager.isCameraActive(),
+                    onDismiss = {
+                        // Auto-deactivate when menu closes
+                        deactivateButtonsByKey("setting")
+                    }
+                )
+            }
         }
     }
+
 
     private fun toggleCameraWithPermission() {
         if (cameraManager.checkCameraPermission()) {
