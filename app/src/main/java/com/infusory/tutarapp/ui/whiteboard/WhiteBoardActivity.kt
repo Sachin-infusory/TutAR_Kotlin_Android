@@ -42,7 +42,6 @@ class WhiteboardActivity : AppCompatActivity() {
     private lateinit var buttonStateManager: WhiteboardButtonStateManager
     private lateinit var stateManager: WhiteboardStateManager
 
-    // Handlers
     private lateinit var popupHandler: PopupHandler
     private lateinit var imagePickerHandler: ImagePickerHandler
 

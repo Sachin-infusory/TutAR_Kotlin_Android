@@ -175,39 +175,57 @@ class PopupHandler(private val context: Context) {
             ActionType.INSERT -> inflater.inflate(R.layout.dialog_insert_options, null)
         }
 
-        // Bind buttons dynamically
+        // Bind buttons dynamically and set text color to black
         when (type) {
             ActionType.SAVE -> {
-                popupView.findViewById<Button>(R.id.btnSaveLesson).setOnClickListener {
-                    currentPopup?.dismiss()
-                    onSaveLesson()
-                    Toast.makeText(context, "Save Lesson clicked", Toast.LENGTH_SHORT).show()
+                popupView.findViewById<Button>(R.id.btnSaveLesson).apply {
+                    setOnClickListener {
+                        currentPopup?.dismiss()
+                        onSaveLesson()
+                        Toast.makeText(context, "Save Lesson clicked", Toast.LENGTH_SHORT).show()
+                    }
+                    setTextColor(Color.BLACK)
                 }
-                popupView.findViewById<Button>(R.id.btnSavePdf).setOnClickListener {
-                    currentPopup?.dismiss()
-                    onSavePdf()
-                    Toast.makeText(context, "Save PDF clicked", Toast.LENGTH_SHORT).show()
+                popupView.findViewById<Button>(R.id.btnSavePdf).apply {
+                    setOnClickListener {
+                        currentPopup?.dismiss()
+                        onSavePdf()
+                        Toast.makeText(context, "Save PDF clicked", Toast.LENGTH_SHORT).show()
+                    }
+                    setTextColor(Color.BLACK)
                 }
             }
             ActionType.INSERT -> {
-                popupView.findViewById<Button>(R.id.btnInsertImage).setOnClickListener {
-                    currentPopup?.dismiss()
-                    onInsertImage()
+                popupView.findViewById<Button>(R.id.btnInsertImage).apply {
+                    setOnClickListener {
+                        currentPopup?.dismiss()
+                        onInsertImage()
+                    }
+                    setTextColor(Color.BLACK)
                 }
-                popupView.findViewById<Button>(R.id.btnInsertPdf).setOnClickListener {
-                    currentPopup?.dismiss()
-                    onInsertPdf()
-                    Toast.makeText(context, "Insert PDF clicked", Toast.LENGTH_SHORT).show()
+                popupView.findViewById<Button>(R.id.btnInsertPdf).apply {
+                    setOnClickListener {
+                        currentPopup?.dismiss()
+                        onInsertPdf()
+                        Toast.makeText(context, "Insert PDF clicked", Toast.LENGTH_SHORT).show()
+                    }
+                    setTextColor(Color.BLACK)
                 }
-                popupView.findViewById<Button>(R.id.btnInsertYoutube).setOnClickListener {
-                    currentPopup?.dismiss()
-                    onInsertYoutube()
-                    Toast.makeText(context, "Insert YouTube clicked", Toast.LENGTH_SHORT).show()
+                popupView.findViewById<Button>(R.id.btnInsertYoutube).apply {
+                    setOnClickListener {
+                        currentPopup?.dismiss()
+                        onInsertYoutube()
+                        Toast.makeText(context, "Insert YouTube clicked", Toast.LENGTH_SHORT).show()
+                    }
+                    setTextColor(Color.BLACK)
                 }
-                popupView.findViewById<Button>(R.id.btnInsertWebsite).setOnClickListener {
-                    currentPopup?.dismiss()
-                    onInsertWebsite()
-                    Toast.makeText(context, "Insert Website clicked", Toast.LENGTH_SHORT).show()
+                popupView.findViewById<Button>(R.id.btnInsertWebsite).apply {
+                    setOnClickListener {
+                        currentPopup?.dismiss()
+                        onInsertWebsite()
+                        Toast.makeText(context, "Insert Website clicked", Toast.LENGTH_SHORT).show()
+                    }
+                    setTextColor(Color.BLACK)
                 }
             }
         }

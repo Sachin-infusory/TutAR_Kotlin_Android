@@ -30,6 +30,8 @@ class HueSliderView @JvmOverloads constructor(
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
         selectedY = 0f
+        // Trigger initial hue selection
+        onHueSelected?.invoke(getCurrentHue())
     }
 
     override fun onDraw(canvas: Canvas) {
@@ -90,10 +92,8 @@ class HueSliderView @JvmOverloads constructor(
             MotionEvent.ACTION_DOWN,
             MotionEvent.ACTION_MOVE -> {
                 selectedY = event.y.coerceIn(0f, height.toFloat())
-
                 val hue = (selectedY / height) * 360f
                 onHueSelected?.invoke(hue)
-
                 invalidate()
                 return true
             }
@@ -104,6 +104,7 @@ class HueSliderView @JvmOverloads constructor(
     fun setHue(hue: Float) {
         selectedY = (hue / 360f) * height
         invalidate()
+        onHueSelected?.invoke(hue)
     }
 
     fun getCurrentHue(): Float {
