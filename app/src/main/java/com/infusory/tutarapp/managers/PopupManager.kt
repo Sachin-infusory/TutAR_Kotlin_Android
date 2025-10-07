@@ -16,17 +16,21 @@ import com.infusory.tutarapp.ui.components.containers.ContainerManager
 class PopupHandler(private val context: Context) {
 
     private val inflater: LayoutInflater = LayoutInflater.from(context)
+    private var currentPopup: PopupWindow? = null
 
     fun showColorPopup(
         anchor: ImageButton,
         surfaceView: SurfaceView,
-        onImagePickRequested: () -> Unit
+        onImagePickRequested: () -> Unit,
+        onDismiss: (() -> Unit)? = null
     ) {
         Log.i("colorPopup", "colorPopupAnchor: ${anchor.tag}")
 
+        dismissCurrentPopup()
+
         val colorView = inflater.inflate(R.layout.dialog_color_picker, null)
 
-        val popup = PopupWindow(
+        currentPopup = PopupWindow(
             colorView,
             LinearLayout.LayoutParams.WRAP_CONTENT,
             LinearLayout.LayoutParams.WRAP_CONTENT,
@@ -48,48 +52,52 @@ class PopupHandler(private val context: Context) {
             surfaceView.setBackgroundColor(
                 ContextCompat.getColor(context, android.R.color.white)
             )
-            popup.dismiss()
+            currentPopup?.dismiss()
         }
 
         green.setOnClickListener {
             surfaceView.setBackgroundColor(
                 ContextCompat.getColor(context, android.R.color.holo_green_light)
             )
-            popup.dismiss()
+            currentPopup?.dismiss()
         }
 
         black.setOnClickListener {
             surfaceView.setBackgroundColor(
                 ContextCompat.getColor(context, android.R.color.black)
             )
-            popup.dismiss()
+            currentPopup?.dismiss()
         }
 
         // Color picker button
         colorPicker.setOnClickListener {
-            popup.dismiss()
-            showCustomColorPickerDialog(surfaceView)
+            currentPopup?.dismiss()
+            showCustomColorPickerDialog(surfaceView, onDismiss)
         }
 
         // Image picker
         pickImage.setOnClickListener {
-            popup.dismiss()
+            currentPopup?.dismiss()
             onImagePickRequested()
         }
 
         // Position popup near the anchor
-        positionPopup(popup, colorView, anchor)
+        positionPopup(currentPopup!!, colorView, anchor)
 
-        popup.setOnDismissListener {
+        currentPopup?.setOnDismissListener {
             anchor.tag = false
             anchor.background = ContextCompat.getDrawable(
                 context,
                 R.drawable.circular_button_background
             )
+            onDismiss?.invoke()
         }
     }
 
-    private fun showCustomColorPickerDialog(surfaceView: SurfaceView) {
+    private fun showCustomColorPickerDialog(
+        surfaceView: SurfaceView,
+        onDismiss: (() -> Unit)? = null
+    ) {
         val dialogView = inflater.inflate(R.layout.dialog_custom_color_picker, null)
 
         val colorPalette = dialogView.findViewById<com.infusory.tutarapp.ui.components.ColorPaletteView>(R.id.colorPalette)
@@ -102,7 +110,6 @@ class PopupHandler(private val context: Context) {
         // Set up hue slider listener
         hueSlider.onHueSelected = { hue ->
             colorPalette.setHue(hue)
-            // FIX: Get the current color AFTER updating the hue
             currentSelectedColor = colorPalette.getCurrentColor()
             updateColorDisplay(currentSelectedColor, selectedColorPreview, hexColorText)
         }
@@ -121,9 +128,16 @@ class PopupHandler(private val context: Context) {
             .setView(dialogView)
             .setPositiveButton("Apply") { _, _ ->
                 surfaceView.setBackgroundColor(currentSelectedColor)
+                onDismiss?.invoke()
             }
-            .setNegativeButton("Cancel", null)
+            .setNegativeButton("Cancel") { _, _ ->
+                onDismiss?.invoke()
+            }
             .create()
+
+        dialog.setOnDismissListener {
+            onDismiss?.invoke()
+        }
 
         dialog.show()
     }
@@ -149,9 +163,12 @@ class PopupHandler(private val context: Context) {
         onInsertImage: () -> Unit = {},
         onInsertPdf: () -> Unit = {},
         onInsertYoutube: () -> Unit = {},
-        onInsertWebsite: () -> Unit = {}
+        onInsertWebsite: () -> Unit = {},
+        onDismiss: (() -> Unit)? = null
     ) {
         Log.i("ActionPopup", "Anchor: ${anchor.tag}, Type: $type")
+
+        dismissCurrentPopup()
 
         val popupView = when (type) {
             ActionType.SAVE -> inflater.inflate(R.layout.dialog_save_options, null)
@@ -161,53 +178,41 @@ class PopupHandler(private val context: Context) {
         // Bind buttons dynamically
         when (type) {
             ActionType.SAVE -> {
-                val btnSaveLesson = popupView.findViewById<Button>(R.id.btnSaveLesson)
-                val btnSavePdf = popupView.findViewById<Button>(R.id.btnSavePdf)
-
-                // Set text color to black for visibility
-                btnSaveLesson.setTextColor(Color.BLACK)
-                btnSavePdf.setTextColor(Color.BLACK)
-
-                btnSaveLesson.setOnClickListener {
+                popupView.findViewById<Button>(R.id.btnSaveLesson).setOnClickListener {
+                    currentPopup?.dismiss()
                     onSaveLesson()
                     Toast.makeText(context, "Save Lesson clicked", Toast.LENGTH_SHORT).show()
                 }
-                btnSavePdf.setOnClickListener {
+                popupView.findViewById<Button>(R.id.btnSavePdf).setOnClickListener {
+                    currentPopup?.dismiss()
                     onSavePdf()
                     Toast.makeText(context, "Save PDF clicked", Toast.LENGTH_SHORT).show()
                 }
             }
             ActionType.INSERT -> {
-                val btnInsertImage = popupView.findViewById<Button>(R.id.btnInsertImage)
-                val btnInsertPdf = popupView.findViewById<Button>(R.id.btnInsertPdf)
-                val btnInsertYoutube = popupView.findViewById<Button>(R.id.btnInsertYoutube)
-                val btnInsertWebsite = popupView.findViewById<Button>(R.id.btnInsertWebsite)
-
-                // Set text color to black for visibility
-                btnInsertImage.setTextColor(Color.BLACK)
-                btnInsertPdf.setTextColor(Color.BLACK)
-                btnInsertYoutube.setTextColor(Color.BLACK)
-                btnInsertWebsite.setTextColor(Color.BLACK)
-
-                btnInsertImage.setOnClickListener {
+                popupView.findViewById<Button>(R.id.btnInsertImage).setOnClickListener {
+                    currentPopup?.dismiss()
                     onInsertImage()
                 }
-                btnInsertPdf.setOnClickListener {
+                popupView.findViewById<Button>(R.id.btnInsertPdf).setOnClickListener {
+                    currentPopup?.dismiss()
                     onInsertPdf()
                     Toast.makeText(context, "Insert PDF clicked", Toast.LENGTH_SHORT).show()
                 }
-                btnInsertYoutube.setOnClickListener {
+                popupView.findViewById<Button>(R.id.btnInsertYoutube).setOnClickListener {
+                    currentPopup?.dismiss()
                     onInsertYoutube()
                     Toast.makeText(context, "Insert YouTube clicked", Toast.LENGTH_SHORT).show()
                 }
-                btnInsertWebsite.setOnClickListener {
+                popupView.findViewById<Button>(R.id.btnInsertWebsite).setOnClickListener {
+                    currentPopup?.dismiss()
                     onInsertWebsite()
                     Toast.makeText(context, "Insert Website clicked", Toast.LENGTH_SHORT).show()
                 }
             }
         }
 
-        val popup = PopupWindow(
+        currentPopup = PopupWindow(
             popupView,
             LinearLayout.LayoutParams.WRAP_CONTENT,
             LinearLayout.LayoutParams.WRAP_CONTENT,
@@ -217,13 +222,14 @@ class PopupHandler(private val context: Context) {
             isOutsideTouchable = true
         }
 
-        positionPopup(popup, popupView, anchor)
+        positionPopup(currentPopup!!, popupView, anchor)
 
-        popup.setOnDismissListener {
+        currentPopup?.setOnDismissListener {
             anchor.background = ContextCompat.getDrawable(
                 context,
                 R.drawable.circular_button_background
             )
+            onDismiss?.invoke()
         }
     }
 
@@ -232,7 +238,8 @@ class PopupHandler(private val context: Context) {
         onCameraToggle: () -> Unit,
         onPauseAll3D: () -> Unit,
         onResumeAll3D: () -> Unit,
-        isCameraActive: Boolean
+        isCameraActive: Boolean,
+        onDismiss: (() -> Unit)? = null
     ) {
         val options = arrayOf(
             "Reset All Positions",
@@ -248,9 +255,9 @@ class PopupHandler(private val context: Context) {
             if (isCameraActive) "Stop Camera" else "Start Camera"
         )
 
-        android.app.AlertDialog.Builder(context)
+        val dialog = android.app.AlertDialog.Builder(context)
             .setTitle("Container Management")
-            .setItems(options) { _, which ->
+            .setItems(options) { dialogInterface, which ->
                 when (which) {
                     0 -> containerManager.resetAllContainers()
                     1 -> containerManager.zoomAllContainers(1.0f)
@@ -264,8 +271,14 @@ class PopupHandler(private val context: Context) {
                     9 -> containerManager.clearAllContainers()
                     10 -> onCameraToggle()
                 }
+                dialogInterface.dismiss()
             }
-            .show()
+            .setOnDismissListener {
+                onDismiss?.invoke()
+            }
+            .create()
+
+        dialog.show()
     }
 
     private fun showContainerStatistics(
@@ -321,5 +334,14 @@ class PopupHandler(private val context: Context) {
         if (popupY < 0) popupY = 10
 
         popup.showAtLocation(anchor, Gravity.NO_GRAVITY, popupX, popupY)
+    }
+
+    private fun dismissCurrentPopup() {
+        currentPopup?.dismiss()
+        currentPopup = null
+    }
+
+    fun dismissAll() {
+        dismissCurrentPopup()
     }
 }
