@@ -1,0 +1,17 @@
+<!-- res/drawable/ic_eraser_tool.xml -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+
+    <!-- Eraser body -->
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M16.24,3.56l4.2,4.2a1,1 0,0 1,0 1.41l-9.2,9.2a1,1 0,0 1,-0.7 0.29H5a1,1 0,0 1,-0.7 -0.29l-1.7,-1.7a1,1 0,0 1,0 -1.41l9.2,-9.2a1,1 0,0 1,1.41 0zM15.54,5.68L6.41,14.81l2.83,2.83l9.13,-9.13l-2.83,-2.83z"/>
+
+    <!-- Bottom line (eraser residue) -->
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M3,20h18v2H3z"/>
+</vector>

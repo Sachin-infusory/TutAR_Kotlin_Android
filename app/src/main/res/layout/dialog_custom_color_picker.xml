@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="24dp"
+    android:background="#FFFFFF">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Pick a Color"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="16dp"/>
+
+    <!-- Color Picker Container -->
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="280dp"
+        android:layout_marginBottom="16dp">
+
+        <!-- Main Color Palette -->
+        <com.infusory.tutarapp.ui.components.ColorPaletteView
+            android:id="@+id/colorPalette"
+            android:layout_width="280dp"
+            android:layout_height="280dp"
+            android:layout_alignParentStart="true"/>
+
+        <com.infusory.tutarapp.ui.components.HueSliderView
+            android:id="@+id/hueSlider"
+            android:layout_width="40dp"
+            android:layout_height="280dp"
+            android:layout_alignParentEnd="true"
+            android:layout_marginStart="16dp"/>
+
+    </RelativeLayout>
+
+    <!-- Selected Color Preview -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="16dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Selected:"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:layout_marginEnd="12dp"/>
+
+        <View
+            android:id="@+id/selectedColorPreview"
+            android:layout_width="60dp"
+            android:layout_height="40dp"
+            android:background="#FFFFFF"
+            android:layout_marginEnd="12dp"/>
+
+        <TextView
+            android:id="@+id/hexColorText"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="#FFFFFF"
+            android:textSize="16sp"
+            android:fontFamily="monospace"
+            android:gravity="center"/>
+
+    </LinearLayout>
+
+</LinearLayout>

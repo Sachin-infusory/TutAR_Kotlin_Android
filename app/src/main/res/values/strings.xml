@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">TutAR</string>
+    <string name="app_logo">TutAR Logo</string>
+    <string name="tagline">Next Reality ClassRoom</string>
+    <string name="version_text">Version 1.0.0</string>
+
+    <!-- Login strings (for future use) -->
+    <string name="email">Email</string>
+    <string name="password">Password</string>
+    <string name="login">Login</string>
+
+    <!-- Common strings -->
+    <string name="loading">Loading...</string>
+    <string name="error">Error</string>
+    <string name="ok">OK</string>
+    <string name="cancel">Cancel</string>
+
+    <string name="welcome_back">Welcome Back</string>
+    <string name="login_subtitle">Sign in to continue your teaching journey</string>
+    <string name="email_hint">Email Address</string>
+    <string name="password_hint">Password</string>
+    <string name="login_button">LOGIN</string>
+    <string name="forgot_password">Forgot Password?</string>
+    <string name="footer_text">TutAR © 2024\nNext Reality ClassRoom</string>
+    <string name="invalid_email">Please enter a valid email</string>
+    <string name="invalid_password">Password must be at least 6 characters</string>
+    <string name="fill_all_fields">Please fill all fields</string>
+</resources>

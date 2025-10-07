@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/splash_background_gradient"
+    tools:context=".ui.splash.SplashActivity">
+
+    <!-- Simple animated background (removed particle overlay for now) -->
+    <View
+        android:id="@+id/animated_background"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:alpha="0.1"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent" />
+
+    <!-- Main logo container -->
+    <androidx.cardview.widget.CardView
+        android:id="@+id/logo_container"
+        android:layout_width="180dp"
+        android:layout_height="180dp"
+        android:layout_marginBottom="40dp"
+        app:cardCornerRadius="90dp"
+        app:cardElevation="20dp"
+        app:cardBackgroundColor="@color/white"
+        app:layout_constraintBottom_toTopOf="@+id/tv_app_name"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_chainStyle="packed">
+
+        <ImageView
+            android:id="@+id/iv_logo"
+            android:layout_width="120dp"
+            android:layout_height="120dp"
+            android:layout_gravity="center"
+            android:src="@drawable/tutar_logo"
+            android:scaleType="centerInside"
+            android:contentDescription="@string/app_logo"
+            tools:src="@drawable/ic_launcher_foreground" />
+
+    </androidx.cardview.widget.CardView>
+
+    <!-- App name text -->
+    <TextView
+        android:id="@+id/tv_app_name"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="40dp"
+        android:text="TutAR"
+        android:textSize="42sp"
+        android:textStyle="bold"
+        android:textColor="@color/white"
+        android:letterSpacing="0.05"
+        android:shadowColor="@color/shadow_color"
+        android:shadowDx="0"
+        android:shadowDy="4"
+        android:shadowRadius="8"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/logo_container" />
+
+    <!-- Tagline text -->
+    <TextView
+        android:id="@+id/tv_tagline"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:text="Next Reality ClassRoom"
+        android:textSize="16sp"
+        android:textColor="@color/tagline_color"
+        android:letterSpacing="0.08"
+        android:alpha="0.9"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/tv_app_name" />
+
+    <!-- Decorative elements -->
+    <View
+        android:id="@+id/decorative_line_left"
+        android:layout_width="60dp"
+        android:layout_height="2dp"
+        android:layout_marginEnd="16dp"
+        android:background="@drawable/gradient_line_left"
+        app:layout_constraintBottom_toBottomOf="@+id/tv_tagline"
+        app:layout_constraintEnd_toStartOf="@+id/tv_tagline"
+        app:layout_constraintTop_toTopOf="@+id/tv_tagline" />
+
+    <View
+        android:id="@+id/decorative_line_right"
+        android:layout_width="60dp"
+        android:layout_height="2dp"
+        android:layout_marginStart="16dp"
+        android:background="@drawable/gradient_line_right"
+        app:layout_constraintBottom_toBottomOf="@+id/tv_tagline"
+        app:layout_constraintStart_toEndOf="@+id/tv_tagline"
+        app:layout_constraintTop_toTopOf="@+id/tv_tagline" />
+
+    <!-- Loading indicator -->
+    <ProgressBar
+        android:id="@+id/loading_indicator"
+        android:layout_width="32dp"
+        android:layout_height="32dp"
+        android:layout_marginTop="60dp"
+        android:indeterminate="true"
+        android:indeterminateTint="@color/white"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/tv_tagline" />
+
+    <!-- Version text -->
+    <TextView
+        android:id="@+id/tv_version"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="32dp"
+        android:text="@string/version_text"
+        android:textSize="12sp"
+        android:textColor="@color/version_text_color"
+        android:alpha="0.7"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>

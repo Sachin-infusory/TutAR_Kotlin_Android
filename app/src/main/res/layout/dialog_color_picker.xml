@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:padding="12dp"
+    android:background="@drawable/option_container"
+    android:gravity="center">
+
+    <RadioButton
+        android:id="@+id/colorWhite"
+        android:layout_width="30dp"
+        android:layout_height="30dp"
+        android:button="@null"
+        android:background="@drawable/bg_color_white"/>
+
+    <RadioButton
+        android:id="@+id/colorGreen"
+        android:layout_width="30dp"
+        android:layout_height="30dp"
+        android:button="@null"
+        android:background="@drawable/bg_color_green"
+        android:layout_marginStart="8dp"/>
+
+    <RadioButton
+        android:id="@+id/colorBlack"
+        android:layout_width="30dp"
+        android:layout_height="30dp"
+        android:button="@null"
+        android:background="@drawable/bg_color_black"
+        android:layout_marginStart="8dp"/>
+
+<!--    <RadioButton-->
+<!--        android:id="@+id/colorSplit"-->
+<!--        android:layout_width="30dp"-->
+<!--        android:layout_height="30dp"-->
+<!--        android:button="@null"-->
+<!--        android:background="@drawable/bg_color_split"-->
+<!--        android:layout_marginStart="8dp"/>-->
+
+    <!-- New Color Picker Button -->
+    <ImageButton
+        android:id="@+id/btnColorPicker"
+        android:layout_width="30dp"
+        android:layout_height="30dp"
+        android:background="@drawable/ic_color_picker"
+        android:scaleType="centerInside"
+        android:layout_marginStart="8dp"
+        android:contentDescription="Color Picker"/>
+
+    <ImageButton
+        android:id="@+id/btnPickImage"
+        android:layout_width="20dp"
+        android:layout_height="20dp"
+        android:background="@drawable/bg_image_selector"
+        android:scaleType="centerInside"
+        android:layout_marginStart="8dp"/>
+</LinearLayout>

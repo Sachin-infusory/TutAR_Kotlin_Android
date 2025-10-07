@@ -1,0 +1,233 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/drawer_background">
+
+    <!-- Header with gradient -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="@drawable/header_gradient"
+        android:paddingStart="20dp"
+        android:paddingEnd="20dp"
+        android:paddingTop="16dp"
+        android:paddingBottom="20dp">
+
+        <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp">
+
+            <TextView
+                android:id="@+id/tv_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_centerInParent="true"
+                android:text="AI Master Search"
+                android:textSize="20sp"
+                android:textStyle="bold"
+                android:textColor="@android:color/white"
+                android:letterSpacing="0.02" />
+
+            <ImageButton
+                android:id="@+id/btn_close"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:layout_alignParentEnd="true"
+                android:layout_centerVertical="true"
+                android:background="@drawable/close_button_background"
+                android:src="@drawable/ic_close_white"
+                android:contentDescription="Close"
+                android:scaleType="center"
+                android:elevation="2dp" />
+
+        </RelativeLayout>
+
+        <!-- Dropdowns Row -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="16dp"
+            android:weightSum="3">
+
+            <!-- Class Spinner -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:layout_marginEnd="8dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Class"
+                    android:textSize="12sp"
+                    android:textColor="@android:color/white"
+                    android:textStyle="bold"
+                    android:layout_marginBottom="6dp"
+                    android:alpha="0.9" />
+
+                <Spinner
+                    android:id="@+id/spinner_class"
+                    android:layout_width="match_parent"
+                    android:layout_height="45dp"
+                    android:background="@drawable/spinner_background"
+                    android:padding="12dp"
+                    android:elevation="2dp" />
+
+            </LinearLayout>
+
+            <!-- Subject Spinner -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:layout_marginHorizontal="4dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Subject"
+                    android:textSize="12sp"
+                    android:textColor="@android:color/white"
+                    android:textStyle="bold"
+                    android:layout_marginBottom="6dp"
+                    android:alpha="0.9" />
+
+                <Spinner
+                    android:id="@+id/spinner_subject"
+                    android:layout_width="match_parent"
+                    android:layout_height="45dp"
+                    android:background="@drawable/spinner_background"
+                    android:padding="12dp"
+                    android:elevation="2dp" />
+
+            </LinearLayout>
+
+            <!-- Option Spinner -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:layout_marginStart="8dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Type"
+                    android:textSize="12sp"
+                    android:textColor="@android:color/white"
+                    android:textStyle="bold"
+                    android:layout_marginBottom="6dp"
+                    android:alpha="0.9" />
+
+                <Spinner
+                    android:id="@+id/spinner_option"
+                    android:layout_width="match_parent"
+                    android:layout_height="45dp"
+                    android:background="@drawable/spinner_background"
+                    android:padding="12dp"
+                    android:elevation="2dp" />
+
+            </LinearLayout>
+
+        </LinearLayout>
+
+        <!-- Query Input Row -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <!-- Query Input -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:layout_marginEnd="12dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Search Query"
+                    android:textSize="12sp"
+                    android:textColor="@android:color/white"
+                    android:textStyle="bold"
+                    android:layout_marginBottom="6dp"
+                    android:alpha="0.9" />
+
+                <EditText
+                    android:id="@+id/et_query"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:minLines="2"
+                    android:maxLines="3"
+                    android:gravity="top|start"
+                    android:hint="Enter your search query..."
+                    android:textColorHint="#80FFFFFF"
+                    android:textColor="@android:color/black"
+                    android:background="@drawable/edittext_background"
+                    android:padding="12dp"
+                    android:textSize="14sp"
+                    android:inputType="textMultiLine|textCapSentences"
+                    android:elevation="2dp" />
+
+            </LinearLayout>
+
+            <!-- Search Button -->
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="bottom">
+
+                <Button
+                    android:id="@+id/btn_search"
+                    android:layout_width="85dp"
+                    android:layout_height="65dp"
+                    android:text="Search"
+                    android:textSize="13sp"
+                    android:textStyle="bold"
+                    android:background="@drawable/modern_search_button"
+                    android:textColor="@android:color/white"
+                    android:elevation="4dp"
+                    android:stateListAnimator="@null" />
+
+            </LinearLayout>
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+    <!-- Results Section -->
+    <ScrollView
+        android:id="@+id/scroll_results"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:visibility="gone"
+        android:background="@android:color/white"
+        android:scrollbars="none">
+
+        <LinearLayout
+            android:id="@+id/ll_results_container"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <!-- Results will be populated programmatically -->
+
+        </LinearLayout>
+
+    </ScrollView>
+
+</LinearLayout>

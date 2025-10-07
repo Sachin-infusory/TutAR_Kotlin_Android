@@ -1,0 +1,29 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="4dp"
+    android:background="@drawable/option_container">
+
+    <Button
+        android:id="@+id/btnSaveLesson"
+        android:layout_width="wrap_content"
+        android:layout_height="36dp"
+        android:minWidth="100dp"
+        android:gravity="start|center_vertical"
+        android:paddingStart="8dp"
+        android:text="Save Lesson"
+        android:layout_marginBottom="2dp"
+        style="?android:attr/borderlessButtonStyle" />
+
+    <Button
+        android:id="@+id/btnSavePdf"
+        style="?android:attr/borderlessButtonStyle"
+        android:layout_width="wrap_content"
+        android:layout_height="36dp"
+        android:gravity="start|center_vertical"
+        android:minWidth="100dp"
+        android:paddingStart="8dp"
+        android:text="Save As PDF" />
+
+</LinearLayout>

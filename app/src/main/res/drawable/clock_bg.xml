@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Shadow layer: a light gray rounded rect placed slightly below the main shape -->
+    <item android:top="6dp" android:left="0dp" android:right="0dp">
+        <shape android:shape="rectangle">
+            <!-- Make shadow corners the same bottom radii so it matches the main shape -->
+            <corners
+                android:topLeftRadius="0dp"
+                android:topRightRadius="0dp"
+                android:bottomLeftRadius="25dp"
+                android:bottomRightRadius="25dp" />
+            <!-- light gray shadow -->
+            <solid android:color="@color/white" /> <!-- semi-transparent gray -->
+        </shape>
+    </item>
+
+    <!-- Main black shape -->
+    <item>
+        <shape android:shape="rectangle">
+            <corners
+                android:topLeftRadius="0dp"
+                android:topRightRadius="0dp"
+                android:bottomLeftRadius="25dp"
+                android:bottomRightRadius="25dp" />
+            <solid android:color="#000000" />
+        </shape>
+    </item>
+
+</layer-list>

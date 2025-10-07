@@ -1,0 +1,68 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:background="@drawable/option_container"
+    android:orientation="vertical"
+    android:padding="2dp">
+
+    <Button
+        android:id="@+id/btnInsertImage"
+        style="?android:attr/borderlessButtonStyle"
+        android:layout_width="wrap_content"
+        android:layout_height="32dp"
+        android:layout_marginBottom="1dp"
+        android:background="?attr/selectableItemBackground"
+        android:gravity="start|center_vertical"
+        android:minWidth="100dp"
+        android:paddingStart="6dp"
+        android:paddingTop="0dp"
+        android:paddingBottom="0dp"
+        android:text="Insert Image"
+        android:textSize="12sp" />
+
+    <Button
+        android:id="@+id/btnInsertPdf"
+        style="?android:attr/borderlessButtonStyle"
+        android:layout_width="111dp"
+        android:layout_height="32dp"
+        android:layout_marginBottom="1dp"
+        android:background="?attr/selectableItemBackground"
+        android:gravity="start|center_vertical"
+        android:minWidth="100dp"
+        android:paddingStart="6dp"
+        android:paddingTop="0dp"
+        android:paddingBottom="0dp"
+        android:text="Insert PDF"
+        android:textSize="12sp" />
+
+    <Button
+        android:id="@+id/btnInsertYoutube"
+        style="?android:attr/borderlessButtonStyle"
+        android:layout_width="wrap_content"
+        android:layout_height="32dp"
+        android:layout_marginBottom="1dp"
+        android:gravity="start|center_vertical"
+        android:minWidth="100dp"
+        android:paddingStart="6dp"
+        android:paddingTop="0dp"
+        android:paddingBottom="0dp"
+        android:text="YouTube Video"
+        android:textSize="12sp"
+        android:background="?attr/selectableItemBackground" />
+
+    <Button
+        android:id="@+id/btnInsertWebsite"
+        style="?android:attr/borderlessButtonStyle"
+        android:layout_width="wrap_content"
+        android:layout_height="32dp"
+        android:layout_marginBottom="0dp"
+        android:gravity="start|center_vertical"
+        android:minWidth="100dp"
+        android:paddingStart="6dp"
+        android:paddingTop="0dp"
+        android:paddingBottom="0dp"
+        android:text="Website"
+        android:textSize="12sp"
+        android:background="?attr/selectableItemBackground" />
+
+</LinearLayout>

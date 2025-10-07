@@ -1,0 +1,420 @@
+[
+  {
+    "Class": "Demo",
+    "subjects": [
+      {
+        "name": "General",
+      "topics": [
+      {
+        "name": "Animals",
+        "thumbnail": "birds_animals.png",
+        "models": [
+          {
+            "name": "Lion",
+            "filename": "171816831863703384580801390842_lion.glb",
+            "thumbnail": "LION.png"
+          },
+          {
+            "name": "Tiger",
+            "filename": "1712053330605039039462100506195_tiger.glb",
+            "thumbnail": "tigerr.png"
+          },
+          {
+            "name": "Hippopotamus",
+            "filename": "17110993672710872060439632026_hippopotamus.glb",
+            "thumbnail": "hippopotamus.png"
+          },
+          {
+            "name": "Whale",
+            "filename": "171205944025306142769869565972_whale.glb",
+            "thumbnail": "whale.png"
+          },
+          {
+            "name": "Dog and Kennel",
+            "filename": "171215164907008846520926551413_dogandkennel.glb",
+            "thumbnail": "dog_and_kennel.png"
+          },
+          {
+            "name": "Lion and Den",
+            "filename": "171109130450608506848448553304_lionandden.glb",
+            "thumbnail": "lion_and_den.png"
+          }
+        ]
+      },
+      {
+        "name": "Birds",
+        "thumbnail": "birds.png",
+        "models": [
+          {
+            "name": "Eagle",
+            "filename": "1711091591510005835944373455915_eagle.glb",
+            "thumbnail": "eagle.png"
+          },
+          {
+            "name": "Penguin",
+            "filename": "17110916474560202285384171903_penguin.glb",
+            "thumbnail": "penguin.png"
+          },
+          {
+            "name": "Honeybee and Beehive",
+            "filename": "171109105174108775503616641209_honeybeeandbeehive.glb",
+            "thumbnail": "honeybee_hive.png"
+          },
+          {
+            "name": "Hen and Chick",
+            "filename": "171324999470909688458041011725_henandchick.glb",
+            "thumbnail": "hen_chick.png"
+          },
+          {
+            "name": "Parrot",
+            "filename": "171877423081305248456867784523_parrot.glb",
+            "thumbnail": "parrot.png"
+          },
+          {
+            "name": "Pigeon",
+            "filename": "1712557795586019120893450486998_pigeon.glb",
+            "thumbnail": "pigeon.png"
+          },
+          {
+            "name": "Crow",
+            "filename": "171921399935209421845251969903_crow.glb",
+            "thumbnail": "crow.png"
+          },
+          {
+            "name": "Vulture",
+            "filename": "1724392343922009608818708672962_vulture.glb",
+            "thumbnail": "vulture.png"
+          }
+        ]
+      },
+      {
+        "name": "Kindergarten",
+        "thumbnail": "kindergarten.jpg",
+        "models": [
+          {
+            "name": "Vowels",
+            "filename": "17120549166890884764863551377_vowels.glb",
+            "thumbnail": "vowels.png"
+          },
+          {
+            "name": "Vowel A",
+            "filename": "171206099355604751172883992134_vowelsa.glb",
+            "thumbnail": "vowelA.png"
+          },
+          {
+            "name": "Vowel E",
+            "filename": "1712061035827011521366650863474_vowelse.glb",
+            "thumbnail": "vowelE.png"
+          },
+          {
+            "name": "Vowel I",
+            "filename": "171109018505501715772925294925_vowelsi.glb",
+            "thumbnail": "vowelI.png"
+          },
+          {
+            "name": "Vowel O",
+            "filename": "1711362194007045856071288743405_vowelso.glb",
+            "thumbnail": "vowelO.png"
+          },
+          {
+            "name": "Vowel U",
+            "filename": "171206497834405855140407140671_vowelsu.glb",
+            "thumbnail": "vowelU.png"
+          },
+          {
+            "name": "Ascending Order",
+            "filename": "171220612222203096960937140876_ascendingorder.glb",
+            "thumbnail": "ascending.png"
+          },
+          {
+            "name": "Descending Order",
+            "filename": "171109171339001868535805805609_descendingorder.glb",
+            "thumbnail": "descending.png"
+          },
+          {
+            "name": "Days of the Week",
+            "filename": "1712135973440008735381829254107_daysoftheweek.glb",
+            "thumbnail": "days_week.png"
+          },
+          {
+            "name": "Ant and Butterfly",
+            "filename": "171402736601407746052705749145_ant_and_butterfly.glb",
+            "thumbnail": "ant_and_butterfly.png"
+          }
+        ]
+      },
+      {
+        "name": "Social Science",
+        "thumbnail": "social.jpg",
+        "models": [
+          {
+            "name": "Ozone Depletion",
+            "filename": "1716206179503042380187014564874_ozonedepletion.glb",
+            "thumbnail": "ozon.png"
+          },
+          {
+            "name": "Inside our Earth",
+            "filename": "172050297944005547099220637002_insideourearth.glb",
+            "thumbnail": "inside_our_earth.png"
+          },
+          {
+            "name": "Rotation of Earth",
+            "filename": "171109044847307574521487834771_rotation_of_earth.glb",
+            "thumbnail": "rotation_earth.png"
+          },
+          {
+            "name": "Revolution of Earth",
+            "filename": "17110903618710898055147687739_revolution_of_earth.glb",
+            "thumbnail": "revolution_of_earth.png"
+          },
+          {
+            "name": "Evaporation",
+            "filename": "1713265962500008776316091595704_evaporation.glb",
+            "thumbnail": "evaporation.png"
+          },
+          {
+            "name": "Condensation",
+            "filename": "1718197447280021888606129581123_condensation.glb",
+            "thumbnail": "condensation.png"
+          },
+          {
+            "name": "Precipitation",
+            "filename": "1712153805054036612454274631645_precipitation.glb",
+            "thumbnail": "precipitation.png"
+          }
+        ]
+      },
+      {
+        "name": "Maths",
+        "thumbnail": "maths.jpg",
+        "models": [
+          {
+            "name": "Altitude of a Balloon",
+            "filename": "17120611378320271698437098816_altitudeoftheballoon.glb",
+            "thumbnail": "altitude_balloon.png"
+          },
+          {
+            "name": "Nets of Cube",
+            "filename": "1715325452759000268843449233902_nets_of_cube.glb",
+            "thumbnail": "nets_of_cube.png"
+          },
+          {
+            "name": "Subtraction",
+            "filename": "171255910640203834339713380899_subtractionexample1g2.glb",
+            "thumbnail": "subtraction.png"
+          },
+          {
+            "name": "Conversion of Solid from One Shape to Another",
+            "filename": "172087205476105151641827335343_conversionofsolidoneshapeanother1.glb",
+            "thumbnail": "conversion_of_solid.png"
+          }
+        ]
+      },
+      {
+        "name": "Physics",
+        "thumbnail": "physics.jpg",
+        "models": [
+          {
+            "name": "Solenoid",
+            "filename": "171162051935506521262284346354_solenoid.glb",
+            "thumbnail": "solenoid.png"
+          },
+          {
+            "name": "Photo Electric Effect",
+            "filename": "1715603632360012421360592521369_photoelectriceffect.glb",
+            "thumbnail": "photoelectriceffect.png"
+          },
+          {
+            "name": "Electromagnetic Waves",
+            "filename": "1715591719470013101540468524298_electromagnetic.glb",
+            "thumbnail": "electromagneticwaves.png"
+          },
+          {
+            "name": "Moving Coil Experiment",
+            "filename": "17119763533330931659006599884_movingcoil.glb",
+            "thumbnail": "moving_coil_experiment.png"
+          },
+          {
+            "name": "Electric Motor",
+            "filename": "1711435375263042799324913633385_electricmotor.glb",
+            "thumbnail": "electric_motor.png"
+          },
+          {
+            "name": "Moving Coil Galvanometer",
+            "filename": "171516999633307208207091791508_moving_coil_galvanometer.glb",
+            "thumbnail": "moving_coil_galvanometer.png"
+          },
+          {
+            "name": "AC Generator",
+            "filename": "171523818599709860898756911143_acgenerator.glb",
+            "thumbnail": "ac_generator.png"
+          }
+        ]
+      },
+      {
+        "name": "Chemistry",
+        "thumbnail": "chemistry.jpg",
+        "models": [
+          {
+            "name": "Alpha Scattering Experiment",
+            "filename": "171102289341401652842964478618_alphascatteringexperiment.glb",
+            "thumbnail": "alpha_scattering.png"
+          },
+          {
+            "name": "Structure of Atoms",
+            "filename": "1699942373955015914550987555942_atom.glb",
+            "thumbnail": "atom.png"
+          },
+          {
+            "name": "Hall Heroult Process",
+            "filename": "1717061469337032484534803383314_hall_heroult_process.glb",
+            "thumbnail": "hall_heroult.png"
+          },
+          {
+            "name": "Electroplating Experiment",
+            "filename": "1712232195782009141649034558319_electroplatingexperiment.glb",
+            "thumbnail": "electroplating.png"
+          },
+          {
+            "name": "Discovery of Proton",
+            "filename": "171102750148003215303577915647_discoveryofproton.glb",
+            "thumbnail": "discovery_proton.png"
+          },
+          {
+            "name": "Discovery of Neutron",
+            "filename": "171102157829807940950072913258_discoveryofneutron.glb",
+            "thumbnail": "discovery_neutron.png"
+          },
+          {
+            "name": "Orbital Shapes",
+            "filename": "1717390811633016749709319476747_orbitalshapes.glb",
+            "thumbnail": "orbital_shapes.png"
+          },
+          {
+            "name": "Structure of Water",
+            "filename": "1712205182332018239103234888843_structureofwater.glb",
+            "thumbnail": "structure_water.png"
+          },
+          {
+            "name": "Nitration",
+            "filename": "171835991459706898591232627693_nitration.glb",
+            "thumbnail": "nitration.png"
+          },
+          {
+            "name": "Plum Pudding Model",
+            "filename": "1717132154656023668195635534106_plumpuddingmodel.glb",
+            "thumbnail": "plum_pudding.png"
+          }
+        ]
+      },
+      {
+        "name": "Biology",
+        "thumbnail": "biology.jpg",
+        "models": [
+          {
+            "name": "Heart Cross Section",
+            "filename": "1716891921124021675227280997222_heartcrossection.glb",
+            "thumbnail": "heart_cross_section.png"
+          },
+          {
+            "name": "Kidney Cross Section",
+            "filename": "172190785955905471586203583341_kidneycrosssection.glb",
+            "thumbnail": "kidney_cross_section.png"
+          },
+          {
+            "name": "Photosynthesis",
+            "filename": "171101680464504101673841436142_photosynthesis.glb",
+            "thumbnail": "photosynthesis.png"
+          },
+          {
+            "name": "Blood Clotting",
+            "filename": "1711011767030008241792212960442_blood_clotting.glb",
+            "thumbnail": "blood_clotting.png"
+          },
+          {
+            "name": "Fixed Joint",
+            "filename": "171205359378008277597351056574_fixedjoint.glb",
+            "thumbnail": "fixed_joint.png"
+          },
+          {
+            "name": "Major Internal Organs",
+            "filename": "1711011207110005662360860855453_majorinternalorgan.glb",
+            "thumbnail": "major_internal_organs.png"
+          },
+          {
+            "name": "Skeleton",
+            "filename": "170071655899406657735768052644_skeletalsystem.glb",
+            "thumbnail": "skeleton.png"
+          },
+          {
+            "name": "Flower Parts",
+            "filename": "171543080143107360621354152106_flower_parts.glb",
+            "thumbnail": "flower_parts.png"
+          },
+          {
+            "name": "Lungs",
+            "filename": "171211941627908173933260556931_lungs.glb",
+            "thumbnail": "lungs.png"
+          },
+          {
+            "name": "Eye Cross Section",
+            "filename": "171205333691209072302377287238_eye_cross_section.glb",
+            "thumbnail": "eye_cross_section.png"
+          },
+          {
+            "name": "Small Intestine",
+            "filename": "1711369534816061834979213988_small_intestine.glb",
+            "thumbnail": "small_intestine.png"
+          },
+          {
+            "name": "Circulatory System",
+            "filename": "171100322814805052034622008197_circulatorysystem.glb",
+            "thumbnail": "circulatory_system.png"
+          },
+          {
+            "name": "Life Cycle of Hen",
+            "filename": "171102234761006263641227704482_life_cycle_of_hen.glb",
+            "thumbnail": "life_cycle_hen.png"
+          },
+          {
+            "name": "Life Cycle of Frog",
+            "filename": "171102222704402184900343710643_lifecycleoffrogpart1.glb",
+            "thumbnail": "life_cycle_frog.png"
+          },
+          {
+            "name": "Butterfly Life Cycle",
+            "filename": "171101352202104092553346602492_butterfly_life_1.glb",
+            "thumbnail": "life_cycle_butterfly.png"
+          },
+          {
+            "name": "Plant Growth",
+            "filename": "1718776479465021286455133239968_plantgrowth.glb",
+            "thumbnail": "plant_growth.png"
+          },
+          {
+            "name": "Plant Cell",
+            "filename": "1716358929133003890202116170616_plantcell.glb",
+            "thumbnail": "plant_cell.png"
+          },
+          {
+            "name": "Brain",
+            "filename": "17120307140290060611489283594944_brain.glb",
+            "thumbnail": "brain.png"
+          },
+          {
+            "name": "Breathing Mechanism Experiment",
+            "filename": "1718002095263024149625074673287_breathingmechanismexperiment.glb",
+            "thumbnail": "breathing_mechanism.png"
+          },
+          {
+            "name": "DNA",
+            "filename": "17121490325770557592515551329_dna.glb",
+            "thumbnail": "dna.png"
+          }
+      ]
+      }
+    ]
+  }
+      ]
+      }
+]

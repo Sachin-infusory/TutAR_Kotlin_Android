@@ -1,0 +1,227 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:elevation="250dp"
+    android:orientation="vertical">
+
+    <!-- Draw Button -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:layout_marginBottom="12dp">
+        <ImageButton
+            android:id="@+id/btn_draw"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:background="@drawable/circular_button_background"
+            android:src="@drawable/ic_draw"
+            android:scaleType="centerInside"
+            android:padding="6dp"
+            android:elevation="260dp"
+            app:tint="#000000" />
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:text="Draw"
+            android:textColor="#FFFFFF"
+            android:textSize="8sp"
+            android:gravity="center" />
+    </LinearLayout>
+
+    <!-- AR Button -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:layout_marginBottom="12dp">
+        <ImageButton
+            android:id="@+id/btn_ar"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:background="@drawable/circular_button_background"
+            android:src="@drawable/ic_ar"
+            android:scaleType="centerInside"
+            android:padding="6dp"
+            android:elevation="260dp"
+            app:tint="#000000" />
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:text="AR"
+            android:textColor="#FFFFFF"
+            android:textSize="8sp"
+            android:gravity="center" />
+    </LinearLayout>
+
+    <!-- Color Plate Button -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:layout_marginBottom="12dp">
+        <ImageButton
+            android:id="@+id/color_plate"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:background="@drawable/circular_button_background"
+            android:src="@drawable/ic_color_plate"
+            android:scaleType="centerInside"
+            android:padding="6dp"
+            android:elevation="260dp"
+            app:tint="#000000" />
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:text="Color"
+            android:textColor="#FFFFFF"
+            android:textSize="8sp"
+            android:gravity="center" />
+    </LinearLayout>
+
+    <!-- Load Lessons Button -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:layout_marginBottom="12dp">
+        <ImageButton
+            android:id="@+id/btn_load_lesson"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:background="@drawable/circular_button_background"
+            android:src="@drawable/ic_load_lesson"
+            android:scaleType="centerInside"
+            android:padding="6dp"
+            android:elevation="260dp"
+            app:tint="#000000" />
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:text="Lessons"
+            android:textColor="#FFFFFF"
+            android:textSize="8sp"
+            android:gravity="center" />
+    </LinearLayout>
+
+    <!-- 3D Menu Button -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:layout_marginBottom="12dp">
+        <ImageButton
+            android:id="@+id/btn_menu"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:background="@drawable/circular_button_background"
+            android:src="@drawable/ic_flash"
+            android:scaleType="centerInside"
+            android:padding="6dp"
+            android:elevation="260dp"
+            app:tint="#000000" />
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:text="Model"
+            android:textColor="#FFFFFF"
+            android:textSize="8sp"
+            android:gravity="center" />
+    </LinearLayout>
+
+    <!-- Save Button -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:layout_marginBottom="12dp">
+        <ImageButton
+            android:id="@+id/btn_save"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:background="@drawable/circular_button_background"
+            android:src="@drawable/ic_save"
+            android:scaleType="centerInside"
+            android:padding="6dp"
+            android:elevation="260dp"
+            app:tint="#000000" />
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:text="Save"
+            android:textColor="#FFFFFF"
+            android:textSize="8sp"
+            android:gravity="center" />
+    </LinearLayout>
+
+    <!-- Insert Button -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:layout_marginBottom="12dp">
+        <ImageButton
+            android:id="@+id/btn_insert"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:background="@drawable/circular_button_background"
+            android:src="@drawable/ic_insert"
+            android:scaleType="centerInside"
+            android:padding="6dp"
+            android:elevation="260dp"
+            app:tint="#000000" />
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:text="Insert"
+            android:textColor="#FFFFFF"
+            android:textSize="8sp"
+            android:gravity="center" />
+    </LinearLayout>
+
+    <!-- Settings Button -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:layout_marginBottom="12dp">
+        <ImageButton
+            android:id="@+id/btn_setting"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:background="@drawable/circular_button_background"
+            android:src="@drawable/ic_settings"
+            android:scaleType="centerInside"
+            android:padding="6dp"
+            android:elevation="260dp"
+            app:tint="#000000" />
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:text="Settings"
+            android:textColor="#FFFFFF"
+            android:textSize="8sp"
+            android:gravity="center" />
+    </LinearLayout>
+
+
+
+</LinearLayout>

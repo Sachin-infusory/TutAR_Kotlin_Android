@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- item_model_browser.xml -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:padding="12dp"
+    android:background="@drawable/item_ripple_background"
+    android:gravity="center_vertical"
+    android:minHeight="64dp">
+
+    <!-- Icon for Class/Subject/Topic/Back -->
+    <ImageView
+        android:id="@+id/iv_icon"
+        android:layout_width="32dp"
+        android:layout_height="32dp"
+        android:layout_marginEnd="16dp"
+        android:src="@drawable/ic_folder"
+        android:visibility="visible" />
+
+    <!-- Thumbnail for Models -->
+    <ImageView
+        android:id="@+id/iv_thumbnail"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_marginEnd="16dp"
+        android:background="@drawable/thumbnail_background"
+        android:scaleType="centerCrop"
+        android:visibility="gone" />
+
+    <!-- Text Content -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/tv_title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Title"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:textColor="@android:color/black"
+            android:maxLines="2"
+            android:ellipsize="end" />
+
+        <TextView
+            android:id="@+id/tv_subtitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Subtitle"
+            android:textSize="12sp"
+            android:textColor="@android:color/darker_gray"
+            android:layout_marginTop="2dp"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:visibility="gone" />
+
+    </LinearLayout>
+
+    <!-- Arrow for navigable items -->
+    <ImageView
+        android:id="@+id/iv_arrow"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:layout_marginStart="8dp"
+        android:src="@drawable/ic_arrow_forward"
+        android:visibility="visible" />
+
+</LinearLayout>

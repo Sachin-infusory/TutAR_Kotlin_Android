@@ -1,0 +1,23 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Base application theme. -->
+    <style name="Base.Theme.TutAR_Next_Reality_Classroom" parent="Theme.Material3.DayNight.NoActionBar">
+        <!-- Customize your light theme here. -->
+        <!-- <item name="colorPrimary">@color/my_light_primary</item> -->
+    </style>
+
+    <style name="Theme.TutAR_Next_Reality_Classroom" parent="Base.Theme.TutAR_Next_Reality_Classroom" />
+
+    <style name="LoginInputLayout" parent="Widget.Material3.TextInputLayout.OutlinedBox">
+        <item name="boxStrokeColor">@color/login_primary</item>
+        <item name="boxStrokeWidth">2dp</item>
+        <item name="hintTextColor">@color/login_primary</item>
+        <item name="android:textColorHint">@color/login_text_secondary</item>
+    </style>
+
+    <style name="LoginButton" parent="Widget.Material3.Button">
+        <item name="backgroundTint">@color/login_primary</item>
+        <item name="android:textColor">@color/white</item>
+        <item name="cornerRadius">28dp</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+</resources>
