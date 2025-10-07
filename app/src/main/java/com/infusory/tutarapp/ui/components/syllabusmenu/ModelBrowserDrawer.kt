@@ -38,6 +38,9 @@ class ModelBrowserDrawer(
     private var isSearchMode = false
     private var currentSearchQuery = ""
 
+    // Dismiss listener
+    private var onDismissListener: (() -> Unit)? = null
+
     fun show() {
         loadModelData()
         if (classesData.isNotEmpty()) {
@@ -127,6 +130,11 @@ class ModelBrowserDrawer(
                 behavior.isDraggable = true // Allow dragging to close
                 behavior.isHideable = true // Allow dismissing by dragging down
             }
+        }
+
+        // Set dismiss listener to notify when dialog is dismissed
+        bottomSheetDialog?.setOnDismissListener {
+            onDismissListener?.invoke()
         }
 
         bottomSheetDialog?.show()
@@ -457,6 +465,13 @@ class ModelBrowserDrawer(
 
     fun dismiss() {
         bottomSheetDialog?.dismiss()
+    }
+
+    /**
+     * Set a listener to be called when the drawer is dismissed
+     */
+    fun setOnDismissListener(listener: () -> Unit) {
+        onDismissListener = listener
     }
 }
 
