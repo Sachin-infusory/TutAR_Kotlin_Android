@@ -1,8 +1,9 @@
-
 package com.infusory.tutarapp.ui.auth
 
 import android.animation.ObjectAnimator
+import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
@@ -18,14 +19,41 @@ import com.infusory.tutarapp.R
 import com.infusory.tutarapp.databinding.ActivityLoginBinding
 import com.infusory.tutarapp.ui.whiteboard.WhiteboardActivity
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.*
 
 class LoginActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityLoginBinding
     private val viewModel: LoginViewModel by viewModels()
+    private lateinit var sharedPreferences: SharedPreferences
+
+    companion object {
+        private const val PREF_NAME = "TutarAppPreferences"
+        private const val KEY_IS_LOGGED_IN = "is_logged_in"
+        private const val KEY_LOGIN_TIME = "login_time"
+        private const val KEY_LOGIN_DATE = "login_date"
+        private const val KEY_USER_EMAIL = "user_email"
+        private const val KEY_SESSION_EXPIRED = "session_expired"
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Initialize SharedPreferences
+        sharedPreferences = getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+
+        // Check if session has expired permanently
+        if (isSessionPermanentlyExpired()) {
+            navigateToSessionExpired()
+            return
+        }
+
+        // Check if user is already logged in
+        if (isUserLoggedIn()) {
+            navigateToWhiteboard()
+            return
+        }
 
         binding = ActivityLoginBinding.inflate(layoutInflater)
         setContentView(binding.root)
@@ -34,6 +62,48 @@ class LoginActivity : AppCompatActivity() {
         setupUI()
         setupObservers()
         startEnterAnimations()
+    }
+
+    private fun isUserLoggedIn(): Boolean {
+        return sharedPreferences.getBoolean(KEY_IS_LOGGED_IN, false)
+    }
+
+    private fun isSessionPermanentlyExpired(): Boolean {
+        return sharedPreferences.getBoolean(KEY_SESSION_EXPIRED, false)
+    }
+
+    private fun saveLoginState(email: String) {
+        val editor = sharedPreferences.edit()
+
+        // Get current date and time
+        val calendar = Calendar.getInstance()
+        val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+        val timeFormat = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+
+        val currentDate = dateFormat.format(calendar.time)
+        val currentTime = timeFormat.format(calendar.time)
+
+        // Save login information
+        editor.putBoolean(KEY_IS_LOGGED_IN, true)
+        editor.putString(KEY_LOGIN_DATE, currentDate)
+        editor.putString(KEY_LOGIN_TIME, currentTime)
+        editor.putString(KEY_USER_EMAIL, email)
+        editor.putBoolean(KEY_SESSION_EXPIRED, false) // Reset expired flag on new login
+        editor.apply()
+    }
+
+    fun clearLoginState() {
+        val editor = sharedPreferences.edit()
+        editor.putBoolean(KEY_IS_LOGGED_IN, false)
+        editor.remove(KEY_LOGIN_DATE)
+        editor.remove(KEY_LOGIN_TIME)
+        editor.remove(KEY_USER_EMAIL)
+        editor.apply()
+    }
+
+    private fun navigateToSessionExpired() {
+        startActivity(Intent(this, SessionExpiredActivity::class.java))
+        finish()
     }
 
     private fun setupWindowInsets() {
@@ -81,6 +151,8 @@ class LoginActivity : AppCompatActivity() {
                     }
                     is LoginState.Success -> {
                         hideLoading()
+                        // Save login state before navigating
+                        saveLoginState(binding.etEmail.text.toString().trim())
                         navigateToWhiteboard()
                     }
                     is LoginState.Error -> {

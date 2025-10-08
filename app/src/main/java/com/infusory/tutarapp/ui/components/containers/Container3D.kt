@@ -378,8 +378,8 @@ class Container3D @JvmOverloads constructor(
                 )
 
                 holder.setFormat(PixelFormat.TRANSLUCENT)
-                setZOrderOnTop(false)
-                setZOrderMediaOverlay(true)
+                setZOrderOnTop(true)
+//                setZOrderMediaOverlay(true)
             }
 
             uiHelper = UiHelper(UiHelper.ContextErrorPolicy.DONT_CHECK).apply {

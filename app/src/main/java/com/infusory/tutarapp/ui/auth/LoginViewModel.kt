@@ -24,27 +24,27 @@ class LoginViewModel : ViewModel() {
 
                 _loginState.value=LoginState.Success("success")
 
-                // Simple validation for demo purposes
-                // Replace this with actual authentication logic
-//                when {
-//                    email == "teacher@tutar.com" && password == "password123" -> {
-//                        _loginState.value = LoginState.Success("Login successful!")
-//                        Timber.d("Login successful for user: $email")
-//                    }
-//                    email == "admin@tutar.com" && password == "admin123" -> {
-//                        _loginState.value = LoginState.Success("Admin login successful!")
-//                        Timber.d("Admin login successful for user: $email")
-//                    }
-//                    !isValidEmail(email) -> {
-//                        _loginState.value = LoginState.Error("Please enter a valid email address")
-//                    }
-//                    password.length < 6 -> {
-//                        _loginState.value = LoginState.Error("Password must be at least 6 characters")
-//                    }
-//                    else -> {
-//                        _loginState.value = LoginState.Error("Invalid email or password. Try teacher@tutar.com / password123")
-//                    }
-//                }
+//                 Simple validation for demo purposes
+//                 Replace this with actual authentication logic
+                when {
+                    email == "trytutar@gmail.com" && password == "try@3D" -> {
+                        _loginState.value = LoginState.Success("Login successful!")
+                        Timber.d("Login successful for user: $email")
+                    }
+                    email == "admin@tutar.com" && password == "admin_132" -> {
+                        _loginState.value = LoginState.Success("Admin login successful!")
+                        Timber.d("Admin login successful for user: $email")
+                    }
+                    !isValidEmail(email) -> {
+                        _loginState.value = LoginState.Error("Please enter a valid email address")
+                    }
+                    password.length < 6 -> {
+                        _loginState.value = LoginState.Error("Password must be at least 6 characters")
+                    }
+                    else -> {
+                        _loginState.value = LoginState.Error("Invalid email or password. Try teacher@tutar.com / password123")
+                    }
+                }
 
             } catch (e: Exception) {
                 _loginState.value = LoginState.Error("An error occurred: ${e.message}")
