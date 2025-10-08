@@ -500,6 +500,8 @@ class WhiteboardActivity : AppCompatActivity() {
 
         mainLayout.addView(container3D)
         container3D.initializeContent()
+
+        annotationTool?.bringToFront()
     }
 
     fun pauseAll3DRenderingForDrawing() {

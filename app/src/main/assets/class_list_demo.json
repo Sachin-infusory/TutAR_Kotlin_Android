@@ -76,11 +76,6 @@
             "thumbnail": "pigeon.png"
           },
           {
-            "name": "Crow",
-            "filename": "171921399935209421845251969903_crow.glb",
-            "thumbnail": "crow.png"
-          },
-          {
             "name": "Vulture",
             "filename": "1724392343922009608818708672962_vulture.glb",
             "thumbnail": "vulture.png"
@@ -107,11 +102,6 @@
             "thumbnail": "vowelE.png"
           },
           {
-            "name": "Vowel I",
-            "filename": "171109018505501715772925294925_vowelsi.glb",
-            "thumbnail": "vowelI.png"
-          },
-          {
             "name": "Vowel O",
             "filename": "1711362194007045856071288743405_vowelso.glb",
             "thumbnail": "vowelO.png"
@@ -135,11 +125,6 @@
             "name": "Days of the Week",
             "filename": "1712135973440008735381829254107_daysoftheweek.glb",
             "thumbnail": "days_week.png"
-          },
-          {
-            "name": "Ant and Butterfly",
-            "filename": "171402736601407746052705749145_ant_and_butterfly.glb",
-            "thumbnail": "ant_and_butterfly.png"
           }
         ]
       },

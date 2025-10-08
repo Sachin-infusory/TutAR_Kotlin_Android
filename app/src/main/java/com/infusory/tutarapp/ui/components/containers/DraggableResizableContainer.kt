@@ -339,16 +339,16 @@ open class UnifiedDraggableZoomableContainer @JvmOverloads constructor(
                     if (pointerIndex < 0) return handledByScale || true
 
                     if (!isDragging) {
-                        val deltaX = abs(event.rawX - lastTouchX)
-                        val deltaY = abs(event.rawY - lastTouchY)
+                        val deltaX = abs(event.getRawX(pointerIndex) - lastTouchX)
+                        val deltaY = abs(event.getRawY(pointerIndex) - lastTouchY)
                         if (deltaX > scaledTouchSlop || deltaY > scaledTouchSlop) {
                             isDragging = true
                         }
                     }
 
                     if (isDragging && !isTouchInButtonArea(event.x, event.y)) {
-                        val currentX = event.rawX
-                        val currentY = event.rawY
+                        val currentX = event.getRawX(pointerIndex)
+                        val currentY = event.getRawY(pointerIndex)
                         containerTranslationX += (currentX - lastTouchX)
                         containerTranslationY += (currentY - lastTouchY)
                         translationX = containerTranslationX
@@ -363,6 +363,12 @@ open class UnifiedDraggableZoomableContainer @JvmOverloads constructor(
             MotionEvent.ACTION_POINTER_UP -> {
                 if (event.pointerCount == 2) {
                     isResizing = false
+                    val upIndex = (event.action and MotionEvent.ACTION_POINTER_INDEX_MASK) ushr MotionEvent.ACTION_POINTER_INDEX_SHIFT
+                    val remainingIndex = if (upIndex == 0) 1 else 0
+                    lastTouchX = event.getRawX(remainingIndex)
+                    lastTouchY = event.getRawY(remainingIndex)
+                    activePointerId = event.getPointerId(remainingIndex)
+                    isDragging = false
                 }
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {

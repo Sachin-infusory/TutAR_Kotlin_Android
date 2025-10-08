@@ -2,11 +2,11 @@ package com.infusory.tutarapp.ui.splash
 
 import android.animation.AnimatorSet
 import android.animation.ObjectAnimator
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.view.View
 import android.view.animation.AccelerateDecelerateInterpolator
 import android.view.animation.BounceInterpolator
 import android.view.animation.OvershootInterpolator
@@ -17,12 +17,25 @@ import androidx.core.view.WindowInsetsCompat
 import com.infusory.tutarapp.R
 import com.infusory.tutarapp.databinding.ActivitySplashBinding
 import com.infusory.tutarapp.ui.auth.LoginActivity
+import com.infusory.tutarapp.ui.auth.SessionExpiredActivity
 import com.infusory.tutarapp.ui.whiteboard.WhiteboardActivity
+import java.text.SimpleDateFormat
+import java.util.*
 
 class SplashActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivitySplashBinding
     private val splashDuration = 3000L // 3 seconds total
+
+    companion object {
+        private const val PREF_NAME = "TutarAppPreferences"
+        private const val KEY_IS_LOGGED_IN = "is_logged_in"
+        private const val KEY_LOGIN_TIME = "login_time"
+        private const val KEY_LOGIN_DATE = "login_date"
+        private const val KEY_USER_EMAIL = "user_email"
+        private const val KEY_SESSION_EXPIRED = "session_expired"
+        private const val SESSION_TIMEOUT_MINUTES = 30 * 24 * 60 // 30 days = 43,200 minutes
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -71,9 +84,9 @@ class SplashActivity : AppCompatActivity() {
             animateTagline()
         }, 1200)
 
-        // Navigate to login after splash duration
+        // Check session and navigate after splash duration
         Handler(Looper.getMainLooper()).postDelayed({
-            navigateToLogin()
+            checkSessionAndNavigate()
         }, splashDuration)
     }
 
@@ -148,7 +161,114 @@ class SplashActivity : AppCompatActivity() {
         taglineAnimatorSet.start()
     }
 
+    private fun checkSessionAndNavigate() {
+        val sharedPreferences = getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+
+        // First check if session has been permanently expired
+        val isSessionPermanentlyExpired = sharedPreferences.getBoolean(KEY_SESSION_EXPIRED, false)
+
+        if (isSessionPermanentlyExpired) {
+            android.util.Log.d("SplashActivity", "Session permanently expired - navigating to SessionExpired")
+            navigateToSessionExpired()
+            return
+        }
+
+        val isLoggedIn = sharedPreferences.getBoolean(KEY_IS_LOGGED_IN, false)
+        val loginDate = sharedPreferences.getString(KEY_LOGIN_DATE, null)
+        val loginTime = sharedPreferences.getString(KEY_LOGIN_TIME, null)
+        val userEmail = sharedPreferences.getString(KEY_USER_EMAIL, null)
+
+        android.util.Log.d("SplashActivity", "Login Status: $isLoggedIn")
+        android.util.Log.d("SplashActivity", "Login Date: $loginDate")
+        android.util.Log.d("SplashActivity", "Login Time: $loginTime")
+        android.util.Log.d("SplashActivity", "User Email: $userEmail")
+
+        when {
+            // Login status is false - go to login
+            !isLoggedIn -> {
+                android.util.Log.d("SplashActivity", "Not logged in - navigating to Login")
+                navigateToLogin()
+            }
+            // Login status is true but date/time is missing - go to login
+            loginDate == null || loginTime == null -> {
+                android.util.Log.d("SplashActivity", "Missing login date/time - navigating to Login")
+                navigateToLogin()
+            }
+            // Check if session has expired
+            isSessionExpired(loginDate, loginTime) -> {
+                android.util.Log.d("SplashActivity", "Session expired - marking as permanently expired")
+                markSessionAsPermanentlyExpired()
+                navigateToSessionExpired()
+            }
+            // Session is valid - go to whiteboard
+            else -> {
+                android.util.Log.d("SplashActivity", "Valid session - navigating to Whiteboard")
+                navigateToWhiteboard()
+            }
+        }
+    }
+
+    private fun isSessionExpired(loginDate: String, loginTime: String): Boolean {
+        try {
+            // Combine date and time into a single timestamp
+            val dateTimeString = "$loginDate $loginTime"
+            val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+            val loginDateTime = dateFormat.parse(dateTimeString)
+
+            if (loginDateTime != null) {
+                val loginTimestamp = loginDateTime.time
+                val currentTimestamp = System.currentTimeMillis()
+                val timeDifferenceMillis = currentTimestamp - loginTimestamp
+
+                // Convert to minutes
+                val minutesPassed = timeDifferenceMillis / (1000 * 60)
+
+                android.util.Log.d("SplashActivity", "Minutes since login: $minutesPassed")
+                android.util.Log.d("SplashActivity", "Session timeout threshold: $SESSION_TIMEOUT_MINUTES minutes")
+
+                return minutesPassed >= SESSION_TIMEOUT_MINUTES
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("SplashActivity", "Error parsing login date/time", e)
+            return true // Consider expired if we can't parse
+        }
+
+        return true
+    }
+
+    private fun markSessionAsPermanentlyExpired() {
+        val editor = getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE).edit()
+        editor.putBoolean(KEY_SESSION_EXPIRED, true)
+        editor.apply()
+        android.util.Log.d("SplashActivity", "Session marked as permanently expired")
+    }
+
     private fun navigateToLogin() {
+        exitWithAnimation {
+            startActivity(Intent(this@SplashActivity, LoginActivity::class.java))
+            overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
+            finish()
+        }
+    }
+
+    private fun navigateToSessionExpired() {
+        exitWithAnimation {
+            val intent = Intent(this@SplashActivity, SessionExpiredActivity::class.java)
+            startActivity(intent)
+            overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
+            finish()
+        }
+    }
+
+    private fun navigateToWhiteboard() {
+        exitWithAnimation {
+            startActivity(Intent(this@SplashActivity, WhiteboardActivity::class.java))
+            overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
+            finish()
+        }
+    }
+
+    private fun exitWithAnimation(onComplete: () -> Unit) {
         // Exit animation before navigation
         val logoExitAnimator = ObjectAnimator.ofFloat(binding.ivLogo, "alpha", 1f, 0f)
         val textExitAnimator = ObjectAnimator.ofFloat(binding.tvAppName, "alpha", 1f, 0f)
@@ -160,9 +280,7 @@ class SplashActivity : AppCompatActivity() {
         }
 
         exitAnimatorSet.doOnEnd {
-            startActivity(Intent(this@SplashActivity, WhiteboardActivity::class.java))
-            overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
-            finish()
+            onComplete()
         }
 
         exitAnimatorSet.start()
