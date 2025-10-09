@@ -20,7 +20,6 @@
         android:required="false" />
 
     <application
-        android:name=".TutarAppActivity"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:usesCleartextTraffic="true"
@@ -35,7 +34,7 @@
 
         <!-- Splash Activity - MAIN LAUNCHER -->
         <activity
-            android:name="com.infusory.tutarapp.ui.whiteboard.WhiteboardActivity"
+            android:name="com.infusory.tutarapp.ui.splash.SplashActivity"
             android:exported="true"
             android:theme="@style/SplashTheme"
             android:screenOrientation="landscape"
@@ -46,17 +45,21 @@
             </intent-filter>
         </activity>
 
-        <!-- Login Activity -->
+        <activity
+            android:name="com.infusory.tutarapp.ui.whiteboard.WhiteboardActivity"
+            android:exported="false"
+            android:screenOrientation="landscape"
+            android:windowSoftInputMode="adjustResize" />
         <activity
             android:name="com.infusory.tutarapp.ui.auth.LoginActivity"
             android:exported="false"
             android:screenOrientation="landscape"
             android:windowSoftInputMode="adjustResize" />
-<!--        <activity-->
-<!--            android:name="com.infusory.tutarapp.ui.whiteboard.WhiteboardActivity"-->
-<!--            android:exported="false"-->
-<!--            android:screenOrientation="landscape"-->
-<!--            android:windowSoftInputMode="adjustResize" />-->
+        <activity
+            android:name="com.infusory.tutarapp.ui.auth.SessionExpiredActivity"
+            android:exported="false"
+            android:screenOrientation="landscape"
+            android:windowSoftInputMode="adjustResize" />
 
     </application>
 

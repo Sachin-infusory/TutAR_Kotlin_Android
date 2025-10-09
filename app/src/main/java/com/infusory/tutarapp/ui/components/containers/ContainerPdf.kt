@@ -1,4 +1,3 @@
-// ContainerPdf.kt
 package com.infusory.tutarapp.ui.components.containers
 
 import android.content.Context
@@ -45,16 +44,6 @@ class ContainerPdf @JvmOverloads constructor(
                 iconRes = android.R.drawable.ic_menu_close_clear_cancel,
                 onClick = { onRemoveRequest?.invoke() },
                 position = ButtonPosition.TOP_START
-            ),
-            ControlButton(
-                iconRes = android.R.drawable.ic_menu_info_details,
-                onClick = { showPdfInfo() },
-                position = ButtonPosition.TOP_CENTER
-            ),
-            ControlButton(
-                iconRes = android.R.drawable.ic_menu_rotate,
-                onClick = { rotatePdf() },
-                position = ButtonPosition.TOP_END
             )
         )
 
@@ -265,15 +254,6 @@ class ContainerPdf @JvmOverloads constructor(
 
         nextButton.alpha = if (currentPageIndex < totalPages - 1) 1.0f else 0.5f
         nextButton.isEnabled = currentPageIndex < totalPages - 1
-    }
-
-    private fun rotatePdf() {
-        pdfImageView?.rotation = (pdfImageView?.rotation ?: 0f) + 90f
-        android.widget.Toast.makeText(
-            context,
-            "Rotated to ${(pdfImageView?.rotation ?: 0f).toInt()}°",
-            android.widget.Toast.LENGTH_SHORT
-        ).show()
     }
 
     private fun showPdfInfo() {

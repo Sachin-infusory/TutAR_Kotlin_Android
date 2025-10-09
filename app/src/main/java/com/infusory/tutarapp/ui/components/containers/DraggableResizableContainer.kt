@@ -1,4 +1,3 @@
-// UnifiedDraggableZoomableContainer.kt - Fixed Pinch Zoom
 package com.infusory.tutarapp.ui.components.containers
 
 import android.animation.ValueAnimator
@@ -52,6 +51,10 @@ open class UnifiedDraggableZoomableContainer @JvmOverloads constructor(
 
     // Scale tracking
     private var currentScaleValue = 1f
+    private var smoothedScale = 1f
+    private val SMOOTHING_FACTOR = 0.3f // Adjust for desired smoothness
+    private var lastScaleUpdateTime = 0L
+    private val SCALE_UPDATE_INTERVAL = 16L // ~60fps
 
     // Aspect ratio management
     protected var maintainAspectRatio: Boolean = false
@@ -146,15 +149,7 @@ open class UnifiedDraggableZoomableContainer @JvmOverloads constructor(
     private fun setTransformationMode(active: Boolean) {
         if (active != isActivelyTransforming) {
             isActivelyTransforming = active
-            if (active) {
-                // Disable hardware layer during transformation for better performance
-                setLayerType(LAYER_TYPE_NONE, null)
-                setDrawingCacheQuality(View.DRAWING_CACHE_QUALITY_LOW)
-            } else {
-                // Re-enable hardware layer after transformation
-                setLayerType(LAYER_TYPE_HARDWARE, null)
-                setDrawingCacheQuality(View.DRAWING_CACHE_QUALITY_HIGH)
-            }
+            setDrawingCacheQuality(if (active) View.DRAWING_CACHE_QUALITY_LOW else View.DRAWING_CACHE_QUALITY_HIGH)
         }
     }
 
@@ -172,7 +167,6 @@ open class UnifiedDraggableZoomableContainer @JvmOverloads constructor(
             addView(button)
             positionButton(button, buttonConfig.position)
         }
-
         scheduleButtonUpdate()
     }
 
@@ -211,11 +205,9 @@ open class UnifiedDraggableZoomableContainer @JvmOverloads constructor(
         val buttonSize = dpToPx(24)
         val layoutParams = button.layoutParams as LayoutParams
 
-        // Count existing buttons at the same position for stacking
         val existingButtonsAtPosition = controlButtons.count { existingButton ->
             if (existingButton == button) return@count false
             val existingLayoutParams = existingButton.layoutParams as LayoutParams
-
             when (position) {
                 ButtonPosition.TOP_START ->
                     existingLayoutParams.gravity == (Gravity.TOP or Gravity.START)
@@ -236,14 +228,12 @@ open class UnifiedDraggableZoomableContainer @JvmOverloads constructor(
             }
         }
 
-        // Calculate vertical offset for stacking
         val verticalOffset = existingButtonsAtPosition * (buttonSize + dpToPx(4))
 
         when (position) {
             ButtonPosition.TOP_START -> {
                 val horizontalOffset = dpToPx(2)
                 val verticalStartOffset = dpToPx(2)
-
                 layoutParams.setMargins(
                     horizontalOffset,
                     verticalStartOffset + verticalOffset,
@@ -281,19 +271,16 @@ open class UnifiedDraggableZoomableContainer @JvmOverloads constructor(
                 layoutParams.gravity = Gravity.CENTER_VERTICAL or Gravity.END
             }
         }
-
         button.layoutParams = layoutParams
     }
 
     private fun updateButtonExclusionAreas() {
         buttonExclusionAreas.clear()
-
         val buttonSize = dpToPx(24)
         val touchPadding = dpToPx(16)
 
         controlButtons.forEach { button ->
             val layoutParams = button.layoutParams as LayoutParams
-
             val rect = when {
                 layoutParams.gravity and Gravity.TOP != 0 && layoutParams.gravity and Gravity.START != 0 -> {
                     RectF(0f, 0f, (buttonSize + touchPadding).toFloat(), (buttonSize + touchPadding).toFloat())
@@ -309,7 +296,6 @@ open class UnifiedDraggableZoomableContainer @JvmOverloads constructor(
                 }
                 else -> RectF(0f, 0f, (buttonSize + touchPadding).toFloat(), (buttonSize + touchPadding).toFloat())
             }
-
             buttonExclusionAreas.add(rect)
         }
     }
@@ -320,7 +306,6 @@ open class UnifiedDraggableZoomableContainer @JvmOverloads constructor(
             return super.onTouchEvent(event)
         }
 
-        // CRITICAL FIX: Always let ScaleGestureDetector see events first
         var handledByScale = false
         if (isResizingEnabled) {
             handledByScale = scaleGestureDetector.onTouchEvent(event)
@@ -332,92 +317,71 @@ open class UnifiedDraggableZoomableContainer @JvmOverloads constructor(
                 lastTouchX = event.rawX
                 lastTouchY = event.rawY
                 isDragging = false
-
-                // Enable performance optimizations
                 setTransformationMode(true)
-
                 if (isDraggingEnabled && !isTouchInButtonArea(event.x, event.y)) {
                     parent?.requestDisallowInterceptTouchEvent(true)
                 }
                 return true
             }
-
             MotionEvent.ACTION_POINTER_DOWN -> {
-                // Let scale detector handle it, just update our state
                 if (isResizingEnabled && event.pointerCount == 2) {
                     isResizing = true
                     isDragging = false
                     parent?.requestDisallowInterceptTouchEvent(true)
                 }
-                // Don't return early - let the detector handle it
             }
-
             MotionEvent.ACTION_MOVE -> {
-                // If scale detector is active, let it handle everything
                 if (isResizing && event.pointerCount >= 2) {
                     return handledByScale || true
                 }
-
-                // Only handle dragging if single touch
                 if (!isResizing && isDraggingEnabled && event.pointerCount == 1) {
                     val pointerIndex = event.findPointerIndex(activePointerId)
                     if (pointerIndex < 0) return handledByScale || true
 
                     if (!isDragging) {
-                        val deltaX = abs(event.rawX - lastTouchX)
-                        val deltaY = abs(event.rawY - lastTouchY)
+                        val deltaX = abs(event.getRawX(pointerIndex) - lastTouchX)
+                        val deltaY = abs(event.getRawY(pointerIndex) - lastTouchY)
                         if (deltaX > scaledTouchSlop || deltaY > scaledTouchSlop) {
                             isDragging = true
                         }
                     }
 
                     if (isDragging && !isTouchInButtonArea(event.x, event.y)) {
-                        val currentX = event.rawX
-                        val currentY = event.rawY
-
-                        // Direct translation without intermediate calculations
+                        val currentX = event.getRawX(pointerIndex)
+                        val currentY = event.getRawY(pointerIndex)
                         containerTranslationX += (currentX - lastTouchX)
                         containerTranslationY += (currentY - lastTouchY)
-
-                        // Apply position immediately
                         translationX = containerTranslationX
                         translationY = containerTranslationY
-
-                        // Callback without bounds check (do it less frequently)
                         onContainerMoved?.invoke(containerTranslationX, containerTranslationY)
-
                         lastTouchX = currentX
                         lastTouchY = currentY
                     }
                 }
                 return handledByScale || true
             }
-
             MotionEvent.ACTION_POINTER_UP -> {
-                // More precise: only end resize when going from 2 to 1 finger
                 if (event.pointerCount == 2) {
                     isResizing = false
+                    val upIndex = (event.action and MotionEvent.ACTION_POINTER_INDEX_MASK) ushr MotionEvent.ACTION_POINTER_INDEX_SHIFT
+                    val remainingIndex = if (upIndex == 0) 1 else 0
+                    lastTouchX = event.getRawX(remainingIndex)
+                    lastTouchY = event.getRawY(remainingIndex)
+                    activePointerId = event.getPointerId(remainingIndex)
+                    isDragging = false
                 }
-                // Continue processing
             }
-
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                 activePointerId = MotionEvent.INVALID_POINTER_ID
                 isDragging = false
                 isResizing = false
                 parent?.requestDisallowInterceptTouchEvent(false)
-
-                // Apply bounds check after gesture ends
                 applyScreenBounds()
                 applyPosition()
-
-                // Disable performance optimizations
                 setTransformationMode(false)
-
                 return true
             }
         }
-
         return handledByScale || super.onTouchEvent(event)
     }
 
@@ -428,44 +392,47 @@ open class UnifiedDraggableZoomableContainer @JvmOverloads constructor(
     private fun applyScreenBounds() {
         val now = System.currentTimeMillis()
         if (now - lastBoundsCheck < BOUNDS_CHECK_INTERVAL && (isDragging || isResizing)) {
-            return // Skip bounds check during rapid movement
+            return
         }
         lastBoundsCheck = now
 
         val parent = parent as? ViewGroup ?: return
-
         val parentWidth = parent.width.toFloat()
         val parentHeight = parent.height.toFloat()
-
         val visibleThreshold = 0.2f
         val minX = -currentWidth * (1f - visibleThreshold)
         val maxX = parentWidth - currentWidth * visibleThreshold
         val minY = -currentHeight * (1f - visibleThreshold)
         val maxY = parentHeight - currentHeight * visibleThreshold
-
         containerTranslationX = containerTranslationX.coerceIn(minX, maxX)
         containerTranslationY = containerTranslationY.coerceIn(minY, maxY)
     }
 
     private fun applyPosition() {
-        // Use direct property setters for better performance
         translationX = containerTranslationX
         translationY = containerTranslationY
     }
 
     private fun applyScaleTransform(scale: Float) {
-        currentScaleValue = scale
+        val newScale = scale.coerceIn(
+            minSize.toFloat() / baseWidth,
+            maxSize.toFloat() / baseWidth
+        )
+        smoothedScale = (SMOOTHING_FACTOR * newScale) + ((1f - SMOOTHING_FACTOR) * smoothedScale)
+        currentScaleValue = smoothedScale
 
-        // Use view scaling instead of layout changes - much more performant
-        scaleX = scale
-        scaleY = scale
+        if (abs(currentScaleValue - scaleX) > 0.001f) {
+            scaleX = currentScaleValue
+            scaleY = currentScaleValue
+            currentWidth = (baseWidth * currentScaleValue).toInt()
+            currentHeight = (baseHeight * currentScaleValue).toInt()
+            updateCachedDimensions()
+            scheduleButtonUpdate()
+            onContainerResized?.invoke(currentWidth, currentHeight)
+        }
 
-        // Update logical size for hit detection
-        currentWidth = (baseWidth * scale).toInt()
-        currentHeight = (baseHeight * scale).toInt()
-
-        updateCachedDimensions()
-        scheduleButtonUpdate()
+        applyScreenBounds()
+        applyPosition()
     }
 
     private inner class ResizeListener : ScaleGestureDetector.SimpleOnScaleGestureListener() {
@@ -476,56 +443,53 @@ open class UnifiedDraggableZoomableContainer @JvmOverloads constructor(
             isResizing = true
             initialScale = currentScaleValue
             accumulatedScale = 1f
+            smoothedScale = currentScaleValue
             parent?.requestDisallowInterceptTouchEvent(true)
-            return true  // Always accept the gesture
+            return true
         }
 
         override fun onScale(detector: ScaleGestureDetector): Boolean {
             if (!isResizingEnabled) return false
 
+            val currentTime = System.currentTimeMillis()
+            if (currentTime - lastScaleUpdateTime < SCALE_UPDATE_INTERVAL) {
+                return true
+            }
+            lastScaleUpdateTime = currentTime
+
             try {
                 val scaleFactor = detector.scaleFactor
-
-                // CRITICAL FIX: Filter out invalid scale factors (device-specific issue)
                 if (scaleFactor <= 0f || scaleFactor.isNaN() || scaleFactor.isInfinite()) {
                     return false
                 }
 
                 accumulatedScale *= scaleFactor
-
-                val newScale = (initialScale * accumulatedScale).coerceIn(
-                    minSize.toFloat() / baseWidth,
-                    maxSize.toFloat() / baseWidth
-                )
-
-                // Apply scale transformation directly - no layout changes
+                val newScale = initialScale * accumulatedScale
                 applyScaleTransform(newScale)
-
+                return true
             } catch (e: Exception) {
                 Log.e("Container", "Error during scaling", e)
                 return false
             }
-
-            return true
         }
 
         override fun onScaleEnd(detector: ScaleGestureDetector) {
             isResizing = false
             parent?.requestDisallowInterceptTouchEvent(false)
+            applyScreenBounds()
+            applyPosition()
             onContainerResized?.invoke(currentWidth, currentHeight)
         }
     }
 
     open fun setContent(view: View) {
         val viewsToRemove = mutableListOf<View>()
-
         for (i in 0 until childCount) {
             val child = getChildAt(i)
             if (!controlButtons.contains(child)) {
                 viewsToRemove.add(child)
             }
         }
-
         viewsToRemove.forEach { removeView(it) }
 
         val contentLayoutParams = LayoutParams(
@@ -537,23 +501,19 @@ open class UnifiedDraggableZoomableContainer @JvmOverloads constructor(
             val bottomMargin = if (hasButtonsInBottomArea()) dpToPx(40) else margin
             setMargins(margin, topMargin, margin, bottomMargin)
         }
-
         view.layoutParams = contentLayoutParams
         addView(view, 0)
-
         bringButtonsToFront()
     }
 
     open fun removeContent() {
         val viewsToRemove = mutableListOf<View>()
-
         for (i in 0 until childCount) {
             val child = getChildAt(i)
             if (!controlButtons.contains(child)) {
                 viewsToRemove.add(child)
             }
         }
-
         viewsToRemove.forEach { removeView(it) }
     }
 
@@ -580,7 +540,6 @@ open class UnifiedDraggableZoomableContainer @JvmOverloads constructor(
             val targetScaleX = targetWidth.toFloat() / baseWidth
             val targetScaleY = targetHeight.toFloat() / baseHeight
             val targetScale = (targetScaleX + targetScaleY) / 2f
-
             val animator = ValueAnimator.ofFloat(startScale, targetScale).apply {
                 duration = 300
                 addUpdateListener { animation ->
@@ -597,14 +556,13 @@ open class UnifiedDraggableZoomableContainer @JvmOverloads constructor(
 
     open fun resetTransform() {
         currentScaleValue = 1f
+        smoothedScale = 1f
         scaleX = 1f
         scaleY = 1f
-
         currentWidth = baseWidth
         currentHeight = baseHeight
         containerTranslationX = 100f
         containerTranslationY = 100f
-
         updateCachedDimensions()
         scheduleButtonUpdate()
         applyPosition()
@@ -635,11 +593,9 @@ open class UnifiedDraggableZoomableContainer @JvmOverloads constructor(
     open fun setSizeLimits(minSize: Int, maxSize: Int) {
         this.minSize = minSize.coerceAtLeast(100)
         this.maxSize = maxSize.coerceAtMost(getScreenHeight())
-
         val currentScale = getCurrentScale()
         val minScale = this.minSize.toFloat() / baseWidth
         val maxScale = this.maxSize.toFloat() / baseWidth
-
         if (currentScale < minScale || currentScale > maxScale) {
             val newScale = currentScale.coerceIn(minScale, maxScale)
             applyScaleTransform(newScale)
@@ -649,7 +605,6 @@ open class UnifiedDraggableZoomableContainer @JvmOverloads constructor(
     private fun setDynamicSizeLimits() {
         val screenWidth = getScreenWidth()
         val screenHeight = getScreenHeight()
-
         minSize = dpToPx(150)
         maxSize = (min(screenWidth, screenHeight) * 0.9f).toInt()
     }

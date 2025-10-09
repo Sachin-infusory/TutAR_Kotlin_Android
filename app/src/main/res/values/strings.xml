@@ -26,4 +26,9 @@
     <string name="invalid_email">Please enter a valid email</string>
     <string name="invalid_password">Password must be at least 6 characters</string>
     <string name="fill_all_fields">Please fill all fields</string>
+
+    <string name="session_expired">Session Expired</string>
+    <string name="session_expired_message">Your session has expired.\nThis is a trial version of the app. </string>
+    <string name="login_again">Login Again</string>
+    <string name="session_expired_icon">Session Expired Icon</string>
 </resources>

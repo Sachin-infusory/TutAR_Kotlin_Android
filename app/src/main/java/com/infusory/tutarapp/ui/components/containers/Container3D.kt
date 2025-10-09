@@ -51,6 +51,9 @@ class Container3D @JvmOverloads constructor(
     private var contentContainer: android.widget.FrameLayout? = null
     private var animationToggleButton: ImageView? = null
 
+    // Store all side control buttons for auto-hide
+    private val sideControlButtons = mutableListOf<ImageView>()
+
     // Animation state
     private var currentAnimationIndex = 0
     private var animationStartTime = System.nanoTime()
@@ -58,22 +61,34 @@ class Container3D @JvmOverloads constructor(
     private var isAnimationPaused = false
     private var pausedAnimationTime = 0f
     private var animationClips = mutableListOf<String>()
-    private var isPlayingAllAnimations = true // Play all animations together vs individual clips
+    private var isPlayingAllAnimations = true
 
     // Container state
     private var isInitialized = false
     private var isRenderingActive = false
 
-    // Model data - now required
+    // Model data
     private var modelData: ModelData? = null
     private var modelPath: String? = null
+
+    // Auto-hide functionality
+    private var autoHideEnabled = true
+    private val AUTO_HIDE_DELAY = 4000L
+    private var hideRunnable: Runnable? = null
+    private var controlsVisible = true
+    private val FADE_DURATION = 300L
 
     init {
         // Disable background for main container since content container will have it
         showBackground = false
+
+        // Initialize hide runnable
+        hideRunnable = Runnable {
+            hideControls()
+        }
+
         setup3DContainer()
     }
-
 
     fun setTouchEnabled(enabled: Boolean) {
         touchEnabled = enabled
@@ -84,15 +99,11 @@ class Container3D @JvmOverloads constructor(
         this.modelData = modelData
         this.modelPath = fullPath
 
-        // If already initialized, reload the model
         if (isInitialized) {
             loadModel()
         }
     }
 
-    /**
-     * Set whether touches should pass through to underlying layers
-     */
     fun setPassThroughTouches(enabled: Boolean) {
         passThroughTouches = enabled
         updateTouchHandling()
@@ -100,36 +111,43 @@ class Container3D @JvmOverloads constructor(
 
     private fun updateTouchHandling() {
         surfaceView?.let { surface ->
-            when {
-                !touchEnabled || passThroughTouches -> {
-                    // Disable 3D touch handling and pass through
-                    surface.setOnTouchListener { _, _ -> false }
-                    surface.isClickable = false
-                    surface.isFocusable = false
-                    surface.isFocusableInTouchMode = false
+            // Always handle touch for auto-hide, but only interact with model if enabled
+            surface.setOnTouchListener { _, event ->
+                // Show controls on any interaction
+                if (event.action == android.view.MotionEvent.ACTION_DOWN) {
+                    onInteractionStart()
                 }
-                touchEnabled -> {
-                    // Enable 3D model manipulation
-                    surface.setOnTouchListener { _, event ->
-                        modelViewer?.onTouchEvent(event) ?: false
-                        true
-                    }
-                    surface.isClickable = true
-                    surface.isFocusable = true
-                    surface.isFocusableInTouchMode = true
+
+                // Let model handle touch if enabled
+                val handled = if (touchEnabled && !passThroughTouches) {
+                    modelViewer?.onTouchEvent(event)
+                    true
+                } else {
+                    false
                 }
+
+                // Schedule auto-hide when interaction ends
+                if (event.action == android.view.MotionEvent.ACTION_UP ||
+                    event.action == android.view.MotionEvent.ACTION_CANCEL) {
+                    onInteractionEnd()
+                }
+
+                handled
             }
+
+            // Set clickable state based on touch enabled
+            surface.isClickable = touchEnabled && !passThroughTouches
+            surface.isFocusable = touchEnabled && !passThroughTouches
+            surface.isFocusableInTouchMode = touchEnabled && !passThroughTouches
         }
     }
 
     private fun setup3DContainer() {
-        // Don't add control buttons to the base container anymore
-        // We'll create our own layout structure
+        // Setup will be done in initializeContent
     }
 
     override fun initializeContent() {
         if (!isInitialized) {
-            // Check if model data is set
             if (modelData == null) {
                 android.util.Log.e("Container3D", "Model data not set before initialization")
                 contentContainer?.addView(createErrorView("No model data provided"))
@@ -139,11 +157,94 @@ class Container3D @JvmOverloads constructor(
             createSideControlsLayout()
             create3DView()
             isInitialized = true
+
+            // Start initial auto-hide timer
+            scheduleAutoHide()
+        }
+    }
+
+    // Auto-hide functionality
+    private fun scheduleAutoHide() {
+        if (!autoHideEnabled) return
+
+        cancelAutoHide()
+        hideRunnable?.let {
+            postDelayed(it, AUTO_HIDE_DELAY)
+        }
+    }
+
+    private fun cancelAutoHide() {
+        hideRunnable?.let {
+            removeCallbacks(it)
+        }
+    }
+
+    private fun onInteractionStart() {
+        cancelAutoHide()
+        showControls()
+    }
+
+    private fun onInteractionEnd() {
+        scheduleAutoHide()
+    }
+
+    private fun showControls() {
+        if (controlsVisible) return
+
+        controlsVisible = true
+
+        // Fade in side control buttons
+        sideControlButtons.forEach { button ->
+            button.animate()
+                .alpha(1.0f)
+                .setDuration(FADE_DURATION)
+                .start()
+        }
+
+        // Show dotted border on content container
+        contentContainer?.animate()
+            ?.alpha(1f)
+            ?.setDuration(FADE_DURATION)
+            ?.withStartAction {
+                contentContainer?.setBackgroundResource(R.drawable.dotted_border_background)
+            }
+            ?.start()
+    }
+
+    private fun hideControls() {
+        if (!controlsVisible) return
+
+        controlsVisible = false
+
+        // Fade out side control buttons
+        sideControlButtons.forEach { button ->
+            button.animate()
+                .alpha(0f)
+                .setDuration(FADE_DURATION)
+                .start()
+        }
+
+        // Hide dotted border on content container
+        contentContainer?.animate()
+            ?.alpha(1f)
+            ?.setDuration(FADE_DURATION)
+            ?.withEndAction {
+                contentContainer?.background = null
+            }
+            ?.start()
+    }
+
+    fun setAutoHideEnabled(enabled: Boolean) {
+        autoHideEnabled = enabled
+        if (enabled) {
+            scheduleAutoHide()
+        } else {
+            cancelAutoHide()
+            showControls()
         }
     }
 
     private fun createSideControlsLayout() {
-        // Create main horizontal container
         val mainContainer = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             layoutParams = android.widget.FrameLayout.LayoutParams(
@@ -152,80 +253,72 @@ class Container3D @JvmOverloads constructor(
             )
         }
 
-        // Create controls container (left side)
         controlsContainer = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
             layoutParams = LinearLayout.LayoutParams(
-                dpToPx(48), // Fixed width for controls
+                dpToPx(48),
                 LinearLayout.LayoutParams.MATCH_PARENT
             )
             setPadding(dpToPx(4), dpToPx(4), dpToPx(4), dpToPx(4))
             gravity = Gravity.TOP
         }
 
-        // Create content container (right side) with dotted border
         contentContainer = android.widget.FrameLayout(context).apply {
             layoutParams = LinearLayout.LayoutParams(
-                0, // Use weight
+                0,
                 LinearLayout.LayoutParams.MATCH_PARENT,
-                1f // Take remaining space
+                1f
             )
-            // Apply the dotted border background to content container only
             setBackgroundResource(R.drawable.dotted_border_background)
-            // Add padding so the dotted border is visible
             setPadding(dpToPx(2), dpToPx(2), dpToPx(2), dpToPx(2))
         }
 
-        // Add control buttons to controls container
         addControlButtonsToSide()
 
-        // Assemble layout
         mainContainer.addView(controlsContainer)
         mainContainer.addView(contentContainer)
 
-        // Set this as the main content
         setContent(mainContainer)
     }
 
     private fun addControlButtonsToSide() {
         controlsContainer?.let { container ->
 
-            // Model info button
-            container.addView(createSideControlButton(
+            val interactionButton = createSideControlButton(
                 android.R.drawable.ic_menu_rotate,
                 "Toggle Interaction"
-            ) { toggleInteraction() })
+            ) {
+                onInteractionStart()
+                toggleInteraction()
+                onInteractionEnd()
+            }
+            container.addView(interactionButton)
+            sideControlButtons.add(interactionButton)
 
-            // Add some spacing
             container.addView(createSpacer())
 
-            // Animation toggle button (play/pause)
             animationToggleButton = createSideControlButton(
                 android.R.drawable.ic_media_play,
                 "Toggle Animation"
-            ) { toggleAnimation() }
+            ) {
+                onInteractionStart()
+                toggleAnimation()
+                onInteractionEnd()
+            }
             container.addView(animationToggleButton!!)
+            sideControlButtons.add(animationToggleButton!!)
 
-            // Animation mode toggle button
-//            container.addView(createSideControlButton(
-//                android.R.drawable.ic_menu_sort_by_size,
-//                "Animation Mode"
-//            ) { toggleAnimationMode() })
-
-            // Add some spacing
             container.addView(createSpacer())
 
-//            // More options button
-//            container.addView(createSideControlButton(
-//                android.R.drawable.ic_menu_more,
-//                "Options"
-//            ) { show3DMenu() })
-
-            // Close button
-            container.addView(createSideControlButton(
+            val closeButton = createSideControlButton(
                 android.R.drawable.ic_menu_close_clear_cancel,
                 "Close"
-            ) { onRemoveRequest?.invoke() })
+            ) {
+                onInteractionStart()
+                onRemoveRequest?.invoke()
+            }
+            container.addView(closeButton)
+            sideControlButtons.add(closeButton)
         }
     }
 
@@ -237,20 +330,20 @@ class Container3D @JvmOverloads constructor(
             setImageResource(iconRes)
             background = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
-                setColor(Color.TRANSPARENT) // Fully transparent background
-                setStroke(0, Color.TRANSPARENT) // No border
+                setColor(Color.TRANSPARENT)
+                setStroke(0, Color.TRANSPARENT)
             }
             scaleType = ImageView.ScaleType.CENTER
             elevation = 4f
-            alpha = 1.0f // Fully visible icon (adjust if you want semi-transparent)
+            alpha = 1.0f
             contentDescription = tooltip
 
             setOnClickListener { onClick() }
 
-            // Add touch feedback
             setOnTouchListener { view, event ->
                 when (event.action) {
                     android.view.MotionEvent.ACTION_DOWN -> {
+                        onInteractionStart()
                         alpha = 0.6f
                         scaleX = 0.95f
                         scaleY = 0.95f
@@ -259,6 +352,7 @@ class Container3D @JvmOverloads constructor(
                         alpha = 1.0f
                         scaleX = 1.0f
                         scaleY = 1.0f
+                        onInteractionEnd()
                     }
                 }
                 false
@@ -277,30 +371,25 @@ class Container3D @JvmOverloads constructor(
 
     private fun create3DView() {
         try {
-            // Create surface view for rendering
             surfaceView = SurfaceView(context).apply {
                 layoutParams = android.widget.FrameLayout.LayoutParams(
                     android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
                     android.widget.FrameLayout.LayoutParams.MATCH_PARENT
                 )
 
-                // CRITICAL: Set up surface for transparency
                 holder.setFormat(PixelFormat.TRANSLUCENT)
-                setZOrderOnTop(false)  // Keep this
-                setZOrderMediaOverlay(true)  // ADD THIS LINE - allows transparency
+                setZOrderOnTop(true)
+//                setZOrderMediaOverlay(true)
             }
 
-            // Initialize UI helper with transparency
             uiHelper = UiHelper(UiHelper.ContextErrorPolicy.DONT_CHECK).apply {
-                isOpaque = false  // Keep this
+                isOpaque = false
             }
 
             modelViewer = ModelViewer(surfaceView = surfaceView!!, uiHelper = uiHelper!!)
 
-            // Initial touch setup
             updateTouchHandling()
 
-            // Configure viewer for transparency (MODIFIED)
             configureViewerForTransparency()
             loadModel()
             createIndirectLight()
@@ -316,29 +405,23 @@ class Container3D @JvmOverloads constructor(
 
     private fun configureViewerForTransparency() {
         modelViewer?.view?.apply {
-            // CRITICAL: Use transparent blend mode instead of opaque
             blendMode = View.BlendMode.TRANSLUCENT
 
-            // Optimize render quality for performance while maintaining transparency
             renderQuality = renderQuality.apply {
                 hdrColorBuffer = View.QualityLevel.LOW
             }
 
-            // Disable dynamic resolution for consistent performance
             dynamicResolutionOptions = dynamicResolutionOptions.apply {
                 enabled = false
                 quality = View.QualityLevel.LOW
             }
 
-            // Keep MSAA disabled for better performance
             multiSampleAntiAliasingOptions = multiSampleAntiAliasingOptions.apply {
                 enabled = false
             }
 
-            // Use FXAA instead of no anti-aliasing for better quality with transparency
             antiAliasing = View.AntiAliasing.FXAA
 
-            // Disable expensive effects for performance
             ambientOcclusionOptions = ambientOcclusionOptions.apply {
                 enabled = false
             }
@@ -368,10 +451,9 @@ class Container3D @JvmOverloads constructor(
             }
         }
 
-        // Set transparent clear color through the renderer
         modelViewer?.renderer?.let { renderer ->
             renderer.clearOptions?.let { clearOptions ->
-                clearOptions.clearColor = floatArrayOf(0.0f, 0.0f, 0.0f, 0.0f) // Transparent black
+                clearOptions.clearColor = floatArrayOf(0.0f, 0.0f, 0.0f, 0.0f)
                 clearOptions.clear = true
                 renderer.setClearOptions(clearOptions)
             }
@@ -393,21 +475,17 @@ class Container3D @JvmOverloads constructor(
                     loadModelGlb(modelBuffer)
                     transformToUnitCube()
 
-                    // Clear and setup scene
                     val scene = this.scene
                     val asset = this.asset
 
                     asset?.let {
-                        // Remove all entities first
                         it.entities.forEach { entity -> scene.removeEntity(entity) }
 
-                        // Add back the main entity
                         if (it.entities.isNotEmpty()) {
                             scene.addEntity(it.entities[0])
                         }
                     }
 
-                    // Initialize animations after loading
                     initializeAnimations()
                 }
                 android.util.Log.d("Container3D", "Successfully loaded model: ${currentModelData.name}")
@@ -425,14 +503,12 @@ class Container3D @JvmOverloads constructor(
 
     private fun loadModelFromAssets(filename: String): ByteBuffer? {
         return try {
-            // Try to load from assets/models/ directory
             val assetPath = "models/$filename"
             context.assets.open(assetPath).use { input ->
                 createBufferFromStream(input)
             }
         } catch (e: Exception) {
             try {
-                // Fallback: try loading directly from assets root
                 context.assets.open(filename).use { input ->
                     createBufferFromStream(input)
                 }
@@ -456,9 +532,7 @@ class Container3D @JvmOverloads constructor(
     private fun createIndirectLight() {
         try {
             val ibl = "default_env_ibl.ktx"
-//            val skybox = "default_env_skybox.ktx"
             val buffer = readCompressedAsset(ibl)
-//            val skyBuffer = readCompressedAsset(skybox)
 
             modelViewer?.let { viewer ->
                 val indirectLight = KTX1Loader.createIndirectLight(viewer.engine, buffer)
@@ -467,11 +541,6 @@ class Container3D @JvmOverloads constructor(
                 viewer.scene.indirectLight = indirectLight
                 viewerContent.indirectLight = indirectLight
             }
-
-//            modelViewer?.let { viewer ->
-//                val skybox = KTX1Loader.createSkybox(viewer.engine, skyBuffer)
-//                viewer.scene.skybox = skybox
-//            }
         } catch (e: Exception) {
             android.util.Log.e("Container3D", "Failed to create indirect light", e)
         }
@@ -488,14 +557,12 @@ class Container3D @JvmOverloads constructor(
         modelViewer?.animator?.let { animator ->
             animationClips.clear()
 
-            // Collect all animation names
             for (i in 0 until animator.animationCount) {
                 val animName = animator.getAnimationName(i)
                 animationClips.add(animName)
                 android.util.Log.d("Container3D", "Found animation: $animName (duration: ${animator.getAnimationDuration(i)}s)")
             }
 
-            // For complex models with multiple clips, default to playing all together
             if (animator.animationCount > 1) {
                 isPlayingAllAnimations = true
                 android.util.Log.d("Container3D", "Model has ${animator.animationCount} animations - using combined playback mode")
@@ -504,7 +571,6 @@ class Container3D @JvmOverloads constructor(
                 android.util.Log.d("Container3D", "Model has single animation - using individual playback mode")
             }
 
-            // Reset animation timing
             animationStartTime = System.nanoTime()
             currentAnimationDuration = 0f
             pausedAnimationTime = 0f
@@ -543,10 +609,8 @@ class Container3D @JvmOverloads constructor(
             modelViewer?.animator?.apply {
                 if (animationCount > 0) {
                     if (isPlayingAllAnimations) {
-                        // Play all animations simultaneously (proper for complex models)
                         playAllAnimationsTogether(frameTimeNanos)
                     } else {
-                        // Play individual animation clips sequentially
                         playIndividualAnimation(frameTimeNanos)
                     }
                     updateBoneMatrices()
@@ -558,7 +622,6 @@ class Container3D @JvmOverloads constructor(
             modelViewer?.animator?.apply {
                 val elapsedTimeSeconds = (frameTimeNanos - animationStartTime).toDouble() / 1000000000
 
-                // Calculate the longest animation duration to know when to loop
                 var maxDuration = 0f
                 for (i in 0 until animationCount) {
                     val duration = getAnimationDuration(i)
@@ -568,11 +631,9 @@ class Container3D @JvmOverloads constructor(
                 }
 
                 if (maxDuration > 0f && elapsedTimeSeconds >= maxDuration) {
-                    // Restart all animations
                     animationStartTime = frameTimeNanos
                 }
 
-                // Apply all animations at their current time
                 for (i in 0 until animationCount) {
                     val animTime = (elapsedTimeSeconds % getAnimationDuration(i).toDouble()).toFloat()
                     applyAnimation(i, animTime)
@@ -589,7 +650,6 @@ class Container3D @JvmOverloads constructor(
                 }
 
                 if (elapsedTimeSeconds >= currentAnimationDuration) {
-                    // Move to next animation
                     currentAnimationIndex = (currentAnimationIndex + 1) % animationCount
                     animationStartTime = frameTimeNanos
                     currentAnimationDuration = getAnimationDuration(currentAnimationIndex)
@@ -677,25 +737,6 @@ class Container3D @JvmOverloads constructor(
         }
     }
 
-//    private fun toggleAnimationMode() {
-//        val animator = modelViewer?.animator
-//        if (animator == null || animator.animationCount == 0) {
-//            android.widget.Toast.makeText(context, "No animations available", android.widget.Toast.LENGTH_SHORT).show()
-//            return
-//        }
-//
-//        isPlayingAllAnimations = !isPlayingAllAnimations
-//
-//        // Reset animation timing when switching modes
-//        animationStartTime = System.nanoTime()
-//        currentAnimationDuration = 0f
-//        pausedAnimationTime = 0f
-//        currentAnimationIndex = 0
-//
-//        val mode = if (isPlayingAllAnimations) "All Animations Together" else "Individual Animation Clips"
-//        android.widget.Toast.makeText(context, "Animation Mode: $mode", android.widget.Toast.LENGTH_LONG).show()
-//    }
-
     private fun toggleAnimation() {
         val animator = modelViewer?.animator
         if (animator == null || animator.animationCount == 0) {
@@ -706,12 +747,10 @@ class Container3D @JvmOverloads constructor(
         isAnimationPaused = !isAnimationPaused
 
         if (isAnimationPaused) {
-            // Animation is now paused
             pausedAnimationTime = ((System.nanoTime() - animationStartTime).toDouble() / 1000000000).toFloat()
             animationToggleButton?.setImageResource(android.R.drawable.ic_media_play)
             android.widget.Toast.makeText(context, "Animation paused", android.widget.Toast.LENGTH_SHORT).show()
         } else {
-            // Animation is now playing
             animationStartTime = System.nanoTime() - (pausedAnimationTime * 1000000000).toLong()
             animationToggleButton?.setImageResource(android.R.drawable.ic_media_pause)
             android.widget.Toast.makeText(context, "Animation playing", android.widget.Toast.LENGTH_SHORT).show()
@@ -732,7 +771,6 @@ class Container3D @JvmOverloads constructor(
         android.widget.Toast.makeText(context, "Performance: $fps", android.widget.Toast.LENGTH_SHORT).show()
     }
 
-
     private fun toggleRendering() {
         if (isRenderingActive) {
             stopRendering()
@@ -743,7 +781,6 @@ class Container3D @JvmOverloads constructor(
         }
     }
 
-    // Public methods for external control
     fun switchToAnimation(animationIndex: Int) {
         modelViewer?.animator?.apply {
             if (animationIndex >= 0 && animationIndex < animationCount) {
@@ -824,26 +861,29 @@ class Container3D @JvmOverloads constructor(
         }
     }
 
-    // Lifecycle management
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
         if (isInitialized && !isRenderingActive) {
             startRendering()
         }
-        // Update button icon based on animation state
         animationToggleButton?.setImageResource(
             if (isAnimationPaused) android.R.drawable.ic_media_play else android.R.drawable.ic_media_pause
         )
+
+        // Restart auto-hide timer when reattached
+        if (autoHideEnabled) {
+            scheduleAutoHide()
+        }
     }
 
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
         stopRendering()
         uiHelper?.detach()
+        cancelAutoHide()
     }
 
-    // Override ContainerBase methods
-    override fun getDefaultWidth(): Int = dpToPx(400) // Slightly wider to accommodate side controls
+    override fun getDefaultWidth(): Int = dpToPx(400)
     override fun getDefaultHeight(): Int = dpToPx(350)
 
     override fun getCustomSaveData(): Map<String, Any> {
@@ -857,17 +897,15 @@ class Container3D @JvmOverloads constructor(
             "isAnimationPaused" to isAnimationPaused,
             "pausedAnimationTime" to pausedAnimationTime,
             "isPlayingAllAnimations" to isPlayingAllAnimations,
-            "animationClips" to animationClips
+            "animationClips" to animationClips,
+            "autoHideEnabled" to autoHideEnabled,
+            "controlsVisible" to controlsVisible
         ))
         return baseData
     }
 
     override fun loadCustomSaveData(data: Map<String, Any>) {
         super.loadCustomSaveData(data)
-
-        // Note: Loading model data from save would require additional logic
-        // to reconstruct ModelData object from saved filename/name/path
-        // This might require access to the model browser data
 
         data["currentAnimationIndex"]?.let {
             if (it is Int) currentAnimationIndex = it
@@ -894,8 +932,27 @@ class Container3D @JvmOverloads constructor(
                 }
             }
         }
+        data["autoHideEnabled"]?.let {
+            if (it is Boolean) {
+                autoHideEnabled = it
+                if (autoHideEnabled) {
+                    scheduleAutoHide()
+                }
+            }
+        }
+        data["controlsVisible"]?.let {
+            if (it is Boolean) {
+                controlsVisible = it
+                if (!controlsVisible) {
+                    // Apply hidden state immediately
+                    sideControlButtons.forEach { button ->
+                        button.alpha = 0f
+                    }
+                    contentContainer?.background = null
+                }
+            }
+        }
 
-        // Update button icon after loading state
         animationToggleButton?.setImageResource(
             if (isAnimationPaused) android.R.drawable.ic_media_play else android.R.drawable.ic_media_pause
         )
