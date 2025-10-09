@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <gradient
+        android:startColor="#80008080"
+    android:endColor="#4B008280"
+    android:angle="90" />
+    <corners android:radius="8dp" />
+    <solid android:color="#33000000" /> <!-- Light overlay for glass effect -->
+</shape>
