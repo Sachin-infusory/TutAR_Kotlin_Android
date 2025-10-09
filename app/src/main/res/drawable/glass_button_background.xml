@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <solid android:color="#80008080" /> <!-- Semi-transparent purple -->
+    <corners android:radius="8dp" />
+    <stroke android:width="1dp" android:color="#80FFFFFF" /> <!-- Subtle white border -->
+    <solid android:color="#33000000" /> <!-- Light overlay -->
+</shape>

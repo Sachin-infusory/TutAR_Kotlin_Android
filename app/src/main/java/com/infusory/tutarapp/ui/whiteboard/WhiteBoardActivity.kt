@@ -474,7 +474,7 @@ class WhiteboardActivity : AppCompatActivity() {
     }
 
     private fun createCustom3DContainer(modelData: ModelData, fullPath: String) {
-        if (containerManager.getContainerCount() >= 8) {
+        if (containerManager.getContainerCount() >= 1) {
             Toast.makeText(this, "Maximum containers reached", Toast.LENGTH_SHORT).show()
             return
         }

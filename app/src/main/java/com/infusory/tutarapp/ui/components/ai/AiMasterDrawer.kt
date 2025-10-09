@@ -1,14 +1,19 @@
-// AiMasterDrawer.kt - AI Search Interface Drawer
 package com.infusory.tutarapp.ui.ai
 
+import android.app.Dialog
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
+import android.text.TextUtils
 import android.util.Log
+import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
+import android.view.Window
+import android.view.WindowManager
 import android.widget.*
-import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.infusory.tutarapp.R
 import com.infusory.tutarapp.ui.data.ClassData
 import com.infusory.tutarapp.ui.data.SubjectData
@@ -21,13 +26,15 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import org.json.JSONArray
 import java.io.IOException
+import android.util.Base64
+import android.graphics.BitmapFactory
 
 class AiMasterDrawer(
     private val context: Context,
     private val onResultReceived: (String) -> Unit
 ) {
 
-    private var bottomSheetDialog: BottomSheetDialog? = null
+    private var dialog: Dialog? = null
     private lateinit var dialogView: View
 
     // UI Components
@@ -71,7 +78,6 @@ class AiMasterDrawer(
             val listType = object : TypeToken<List<ClassData>>() {}.type
 
             try {
-                // Try loading from assets first
                 val inputStream = context.assets.open("class_list_demo.json")
                 val jsonString = inputStream.bufferedReader().use { it.readText() }
                 inputStream.close()
@@ -83,7 +89,6 @@ class AiMasterDrawer(
                 Log.d("AiMasterDrawer", "Failed to load from assets, trying other locations...")
             }
 
-            // Try other locations as fallback
             val internalFile = java.io.File(context.filesDir, "class_data.json")
             if (internalFile.exists()) {
                 val fileReader = java.io.FileReader(internalFile)
@@ -103,183 +108,116 @@ class AiMasterDrawer(
     }
 
     private fun createAndShowDialog() {
-        bottomSheetDialog = BottomSheetDialog(context)
-        val view = LayoutInflater.from(context).inflate(R.layout.dialog_ai_master, null)
+        dialog = Dialog(context, R.style.CustomCenteredDialog)
+        dialog?.requestWindowFeature(Window.FEATURE_NO_TITLE)
 
+        val view = LayoutInflater.from(context).inflate(R.layout.dialog_ai_master, null)
         dialogView = view
+
         setupViews(view)
         setupSpinners()
 
-        bottomSheetDialog?.setContentView(view)
+        dialog?.setContentView(view)
 
-        // Configure bottom sheet behavior
-        bottomSheetDialog?.setOnShowListener { dialog ->
-            val bottomSheet = (dialog as BottomSheetDialog).findViewById<android.widget.FrameLayout>(com.google.android.material.R.id.design_bottom_sheet)
-            bottomSheet?.let {
-                val behavior = com.google.android.material.bottomsheet.BottomSheetBehavior.from(it)
+        dialog?.window?.let { window ->
+            window.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
 
-                val displayMetrics = context.resources.displayMetrics
-                val height = (displayMetrics.heightPixels * 0.90).toInt() // 90% of screen height for more content
+            val displayMetrics = context.resources.displayMetrics
+            val configuration = context.resources.configuration
+            val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
 
-                val layoutParams = it.layoutParams
-                layoutParams.height = height
-                it.layoutParams = layoutParams
+            val dialogWidth = (550 * displayMetrics.density).toInt()
+            val dialogHeight = (displayMetrics.heightPixels * 0.90).toInt()
 
-                behavior.peekHeight = height
-                behavior.state = com.google.android.material.bottomsheet.BottomSheetBehavior.STATE_EXPANDED
-                behavior.isDraggable = true
-                behavior.isHideable = true
-            }
+            val layoutParams = window.attributes
+            layoutParams.width = dialogWidth
+            layoutParams.height = dialogHeight
+            layoutParams.gravity = if (isLandscape) Gravity.CENTER else Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+            layoutParams.dimAmount = 0.6f
+            window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+            window.attributes = layoutParams
         }
 
-        bottomSheetDialog?.show()
+        dialog?.setCancelable(true)
+        dialog?.setCanceledOnTouchOutside(true)
+        dialog?.show()
     }
 
     private fun setupViews(view: View) {
-        // Title and close button
-        view.findViewById<TextView>(R.id.tv_title).text = "AI Master Search"
-        view.findViewById<View>(R.id.btn_close).setOnClickListener {
-            bottomSheetDialog?.dismiss()
-        }
-
-        // Spinners
+        view.findViewById<View>(R.id.btn_close).setOnClickListener { dialog?.dismiss() }
         classSpinner = view.findViewById(R.id.spinner_class)
         subjectSpinner = view.findViewById(R.id.spinner_subject)
         optionSpinner = view.findViewById(R.id.spinner_option)
-
-        // Query input
         queryEditText = view.findViewById(R.id.et_query)
-
-        // Search button
         searchButton = view.findViewById(R.id.btn_search)
-        searchButton.setOnClickListener {
-            performSearch()
-        }
-
-        // Results components
+        searchButton.setOnClickListener { performSearch() }
         resultsScrollView = view.findViewById(R.id.scroll_results)
         resultsContainer = view.findViewById(R.id.ll_results_container)
     }
 
     private fun setupSpinners() {
-        // Setup Class Spinner
         val classNames = mutableListOf("Select Class")
         classNames.addAll(classesData.map { it.Class })
-
         val classAdapter = ArrayAdapter(context, android.R.layout.simple_spinner_item, classNames)
         classAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         classSpinner.adapter = classAdapter
-
         classSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
-                if (position > 0) {
-                    selectedClass = classesData[position - 1]
-                    setupSubjectSpinner()
-                } else {
-                    selectedClass = null
-                    setupSubjectSpinner() // Clear subjects
-                }
-            }
-
-            override fun onNothingSelected(parent: AdapterView<*>?) {
-                selectedClass = null
+                selectedClass = if (position > 0) classesData[position - 1] else null
                 setupSubjectSpinner()
             }
+            override fun onNothingSelected(parent: AdapterView<*>?) { selectedClass = null; setupSubjectSpinner() }
         }
 
-        // Setup Option Spinner
         val optionsList = mutableListOf("Select Option")
         optionsList.addAll(options)
-
         val optionAdapter = ArrayAdapter(context, android.R.layout.simple_spinner_item, optionsList)
         optionAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         optionSpinner.adapter = optionAdapter
-
         optionSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
                 selectedOption = if (position > 0) options[position - 1] else ""
             }
-
-            override fun onNothingSelected(parent: AdapterView<*>?) {
-                selectedOption = ""
-            }
+            override fun onNothingSelected(parent: AdapterView<*>?) { selectedOption = "" }
         }
-
-        // Initialize subject spinner
         setupSubjectSpinner()
     }
 
     private fun setupSubjectSpinner() {
         val subjectNames = mutableListOf("Select Subject")
-
-        selectedClass?.subjects?.let { subjects ->
-            subjectNames.addAll(subjects.map { it.name })
-        }
-
+        selectedClass?.subjects?.let { subjectNames.addAll(it.map { it.name }) }
         val subjectAdapter = ArrayAdapter(context, android.R.layout.simple_spinner_item, subjectNames)
         subjectAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         subjectSpinner.adapter = subjectAdapter
-
         subjectSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
-                selectedSubject = if (position > 0 && selectedClass?.subjects != null) {
-                    selectedClass!!.subjects!![position - 1]
-                } else {
-                    null
-                }
+                selectedSubject = if (position > 0 && selectedClass?.subjects != null) selectedClass!!.subjects!![position - 1] else null
             }
-
-            override fun onNothingSelected(parent: AdapterView<*>?) {
-                selectedSubject = null
-            }
+            override fun onNothingSelected(parent: AdapterView<*>?) { selectedSubject = null }
         }
     }
 
     private fun performSearch() {
-        // Validate inputs
-        if (selectedClass == null) {
-            Toast.makeText(context, "Please select a class", Toast.LENGTH_SHORT).show()
+        if (selectedClass == null || selectedSubject == null || selectedOption.isEmpty() || queryEditText.text.toString().trim().isEmpty()) {
+            Toast.makeText(context, "Please fill all fields", Toast.LENGTH_SHORT).show()
             return
         }
 
-        if (selectedSubject == null) {
-            Toast.makeText(context, "Please select a subject", Toast.LENGTH_SHORT).show()
-            return
-        }
-
-        if (selectedOption.isEmpty()) {
-            Toast.makeText(context, "Please select an option", Toast.LENGTH_SHORT).show()
-            return
-        }
-
-        val query = queryEditText.text.toString().trim()
-        if (query.isEmpty()) {
-            Toast.makeText(context, "Please enter a search query", Toast.LENGTH_SHORT).show()
-            return
-        }
-
-        // Disable search button and show loading
         searchButton.isEnabled = false
         searchButton.text = "Searching..."
-
-        // Prepare request data
         val requestData = JSONObject().apply {
             put("className", selectedClass!!.Class)
             put("subjectName", selectedSubject!!.name)
             put("contentType", selectedOption)
-            put("query", query)
+            put("query", queryEditText.text.toString().trim())
         }
-
         Log.d("AiMasterDrawer", "Search request: $requestData")
-
-        // Make API call
         makeApiRequest(requestData.toString())
     }
 
     private fun makeApiRequest(jsonData: String) {
         val mediaType = "application/json; charset=utf-8".toMediaType()
         val requestBody = jsonData.toRequestBody(mediaType)
-
         val request = Request.Builder()
             .url("https://dev-api.tutarverse.com/gemini/searcher")
             .post(requestBody)
@@ -290,36 +228,26 @@ class AiMasterDrawer(
             try {
                 val response = client.newCall(request).execute()
                 val responseBody = response.body?.string() ?: ""
-
                 withContext(Dispatchers.Main) {
-                    // Re-enable search button
                     searchButton.isEnabled = true
                     searchButton.text = "Search"
-
                     if (response.isSuccessful) {
-                        Log.d("AiMasterDrawer", "API Response: $responseBody")
+                        Log.e("AiMasterDrawer", "API Response: $responseBody")
                         handleApiResponse(responseBody)
                     } else {
-                        Log.e("AiMasterDrawer", "API Error: ${response.code} - $responseBody")
                         Toast.makeText(context, "Search failed: ${response.code}", Toast.LENGTH_LONG).show()
                     }
                 }
             } catch (e: IOException) {
                 withContext(Dispatchers.Main) {
-                    // Re-enable search button
                     searchButton.isEnabled = true
                     searchButton.text = "Search"
-
-                    Log.e("AiMasterDrawer", "Network error", e)
                     Toast.makeText(context, "Network error: ${e.message}", Toast.LENGTH_LONG).show()
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
-                    // Re-enable search button
                     searchButton.isEnabled = true
                     searchButton.text = "Search"
-
-                    Log.e("AiMasterDrawer", "Unexpected error", e)
                     Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_LONG).show()
                 }
             }
@@ -329,18 +257,14 @@ class AiMasterDrawer(
     private fun handleApiResponse(responseBody: String) {
         try {
             val jsonResponse = JSONObject(responseBody)
-
             if (jsonResponse.optBoolean("status", false)) {
                 val data = jsonResponse.getJSONObject("data")
                 displayResults(data)
-
-                // Show results section
                 resultsScrollView.visibility = View.VISIBLE
                 Toast.makeText(context, "Search completed successfully!", Toast.LENGTH_SHORT).show()
             } else {
                 Toast.makeText(context, "Search failed: No data received", Toast.LENGTH_LONG).show()
             }
-
         } catch (e: Exception) {
             Log.e("AiMasterDrawer", "Error handling API response", e)
             Toast.makeText(context, "Error processing response: ${e.message}", Toast.LENGTH_LONG).show()
@@ -350,7 +274,6 @@ class AiMasterDrawer(
     private fun displayResults(data: JSONObject) {
         resultsContainer.removeAllViews()
 
-        // Display lesson plan content
         if (data.has("content")) {
             val content = data.getJSONObject("content")
             if (content.has("lessonPlan")) {
@@ -359,7 +282,20 @@ class AiMasterDrawer(
             }
         }
 
-        // Display videos
+        if (data.has("names")) {
+            val names = data.getJSONArray("names")
+            if (names.length() > 0) {
+                display3DModels(names)
+            }
+        }
+
+        if (data.has("images")) {
+            val images = data.getJSONArray("images")
+            if (images.length() > 0) {
+                displayImages(images)
+            }
+        }
+
         if (data.has("videos")) {
             val videos = data.getJSONArray("videos")
             if (videos.length() > 0) {
@@ -367,118 +303,236 @@ class AiMasterDrawer(
             }
         }
 
-        // Display MCQs
         if (data.has("mcqs")) {
             val mcqs = data.getJSONArray("mcqs")
             if (mcqs.length() > 0) {
                 displayMCQs(mcqs)
             }
         }
-
-        // Display related names if available
-        if (data.has("names")) {
-            val names = data.getJSONArray("names")
-            if (names.length() > 0) {
-                displayRelatedNames(names)
-            }
-        }
     }
 
     private fun displayLessonPlan(lessonPlan: JSONObject) {
-        // Create lesson plan section
         val sectionTitle = createSectionTitle("Lesson Plan")
         resultsContainer.addView(sectionTitle)
-
-        // Topic
-        if (lessonPlan.has("topic")) {
-            val topicCard = createInfoCard("Topic", lessonPlan.getString("topic"))
-            resultsContainer.addView(topicCard)
-        }
-
-        // Explanation
-        if (lessonPlan.has("explanation")) {
-            val explanationCard = createInfoCard("Explanation", lessonPlan.getString("explanation"))
-            resultsContainer.addView(explanationCard)
-        }
-
-        // Conclusion
-        if (lessonPlan.has("conclusion")) {
-            val conclusionCard = createInfoCard("Conclusion", lessonPlan.getString("conclusion"))
-            resultsContainer.addView(conclusionCard)
-        }
-
-        // Notes
-        if (lessonPlan.has("notes")) {
-            val notesCard = createInfoCard("Notes", lessonPlan.getString("notes"))
-            resultsContainer.addView(notesCard)
-        }
-
-        addSpacer()
-    }
-
-    private fun displayVideos(videos: JSONArray) {
-        val sectionTitle = createSectionTitle("Related Videos")
-        resultsContainer.addView(sectionTitle)
-
-        for (i in 0 until videos.length()) {
-            val video = videos.getJSONObject(i)
-            val videoId = video.getString("videoId")
-            val thumbnail = video.getString("thumbnail")
-
-            val videoCard = createVideoCard(videoId, thumbnail, i + 1)
-            resultsContainer.addView(videoCard)
-        }
-
+        if (lessonPlan.has("topic")) resultsContainer.addView(createInfoCard("Topic", lessonPlan.getString("topic")))
+        if (lessonPlan.has("explanation")) resultsContainer.addView(createInfoCard("Explanation", lessonPlan.getString("explanation")))
+        if (lessonPlan.has("conclusion")) resultsContainer.addView(createInfoCard("Conclusion", lessonPlan.getString("conclusion")))
+        if (lessonPlan.has("notes")) resultsContainer.addView(createInfoCard("Notes", lessonPlan.getString("notes")))
         addSpacer()
     }
 
     private fun displayMCQs(mcqs: JSONArray) {
         val sectionTitle = createSectionTitle("Multiple Choice Questions")
         resultsContainer.addView(sectionTitle)
-
         for (i in 0 until mcqs.length()) {
             val mcq = mcqs.getJSONObject(i)
-            val mcqCard = createMCQCard(mcq, i + 1)
-            resultsContainer.addView(mcqCard)
+            resultsContainer.addView(createMCQCard(mcq, i + 1))
+        }
+        addSpacer()
+    }
+
+    private fun displayVideos(videos: JSONArray) {
+        val sectionTitle = createSectionTitle("Videos")
+        resultsContainer.addView(sectionTitle)
+
+        val horizontalContainer = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+        }
+
+        val scrollView = HorizontalScrollView(context).apply {
+            isHorizontalScrollBarEnabled = false
+            addView(horizontalContainer)
+        }
+        resultsContainer.addView(scrollView)
+
+        for (i in 0 until videos.length()) {
+            val video = videos.getJSONObject(i)
+            val videoId = video.getString("videoId")
+            val thumbnail = video.getString("thumbnail")
+            val title = video.optString("title", "Video ${i + 1}")
+            val videoCard = createVideoCard(videoId, thumbnail, title)
+            horizontalContainer.addView(videoCard)
         }
 
         addSpacer()
     }
 
-    private fun displayRelatedNames(names: JSONArray) {
-        val sectionTitle = createSectionTitle("Related Topics")
+    private fun display3DModels(names: JSONArray) {
+        val sectionTitle = createSectionTitle("3D Models")
         resultsContainer.addView(sectionTitle)
 
-        val namesText = StringBuilder()
-        for (i in 0 until names.length()) {
-            if (i > 0) namesText.append(", ")
-            namesText.append(names.getString(i))
+        val horizontalContainer = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
         }
 
-        val namesCard = createInfoCard("Related", namesText.toString())
-        resultsContainer.addView(namesCard)
+        val scrollView = HorizontalScrollView(context).apply {
+            isHorizontalScrollBarEnabled = false
+            addView(horizontalContainer)
+        }
+        resultsContainer.addView(scrollView)
+
+        for (i in 0 until names.length()) {
+            val name = names.getString(i)
+            val modelCard = create3DModelCard(name)
+            horizontalContainer.addView(modelCard)
+        }
 
         addSpacer()
+    }
+
+    private fun displayImages(images: JSONArray) {
+        val sectionTitle = createSectionTitle("Images")
+        resultsContainer.addView(sectionTitle)
+
+        val horizontalContainer = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+        }
+
+        val scrollView = HorizontalScrollView(context).apply {
+            isHorizontalScrollBarEnabled = false
+            addView(horizontalContainer)
+        }
+        resultsContainer.addView(scrollView)
+
+        for (i in 0 until images.length()) {
+            val imageBase64 = images.getString(i)
+            val imageCard = createImageCard(imageBase64, i + 1)
+            horizontalContainer.addView(imageCard)
+        }
+
+        addSpacer()
+    }
+
+    private fun createVideoCard(videoId: String, thumbnail: String, title: String): LinearLayout {
+        val cardLayout = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dpToPx(8), dpToPx(8), dpToPx(8), dpToPx(8))
+            setBackgroundResource(R.drawable.modern_video_card_background)
+            layoutParams = LinearLayout.LayoutParams(dpToPx(200), LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+                setMargins(dpToPx(8), 0, dpToPx(8), 0)
+            }
+            isClickable = true
+            elevation = 4f
+            setOnClickListener { openYouTubeVideo(videoId) }
+        }
+
+        val thumbnailView = ImageView(context).apply {
+            setImageURI(Uri.parse(thumbnail))
+            scaleType = ImageView.ScaleType.CENTER_CROP
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dpToPx(80))
+        }
+
+        val titleView = TextView(context).apply {
+            text = title
+            textSize = 12f
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            setTextColor(Color.WHITE)
+            maxLines = 2
+            ellipsize = TextUtils.TruncateAt.END
+            gravity = Gravity.CENTER_HORIZONTAL
+            setPadding(0, dpToPx(4), 0, 0)
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+        }
+
+        cardLayout.addView(thumbnailView)
+        cardLayout.addView(titleView)
+        return cardLayout
+    }
+
+    private fun create3DModelCard(name: String): LinearLayout {
+        val cardLayout = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dpToPx(8), dpToPx(8), dpToPx(8), dpToPx(8))
+            setBackgroundResource(R.drawable.modern_video_card_background)
+            layoutParams = LinearLayout.LayoutParams(dpToPx(120), LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+                setMargins(dpToPx(8), 0, dpToPx(8), 0)
+            }
+            isClickable = true
+            elevation = 4f
+            setOnClickListener { open3DModel(name) }
+        }
+
+        val thumbnailView = ImageView(context).apply {
+            setImageResource(R.drawable.ic_ar) // Ensure this drawable exists
+            scaleType = ImageView.ScaleType.CENTER_CROP
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dpToPx(80))
+        }
+
+        val titleView = TextView(context).apply {
+            text = name
+            textSize = 12f
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            setTextColor(Color.WHITE)
+            maxLines = 2
+            ellipsize = TextUtils.TruncateAt.END
+            gravity = Gravity.CENTER_HORIZONTAL
+            setPadding(0, dpToPx(4), 0, 0)
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+        }
+
+        cardLayout.addView(thumbnailView)
+        cardLayout.addView(titleView)
+        return cardLayout
+    }
+
+    private fun createImageCard(imageBase64: String, index: Int): LinearLayout {
+        val cardLayout = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dpToPx(8), dpToPx(8), dpToPx(8), dpToPx(8))
+            setBackgroundResource(R.drawable.modern_video_card_background)
+            layoutParams = LinearLayout.LayoutParams(dpToPx(120), LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+                setMargins(dpToPx(8), 0, dpToPx(8), 0)
+            }
+            isClickable = true
+            elevation = 4f
+//            setOnClickListener { showImageFullScreen(imageBase64) }
+        }
+
+        val imageView = ImageView(context).apply {
+            val decodedString = imageBase64.split(",")[1] // Remove data URI prefix if present
+            val decodedByte = Base64.decode(decodedString, Base64.DEFAULT)
+            val bitmap = BitmapFactory.decodeByteArray(decodedByte, 0, decodedByte.size)
+            setImageBitmap(bitmap)
+            scaleType = ImageView.ScaleType.CENTER_CROP
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dpToPx(80))
+        }
+
+        val titleView = TextView(context).apply {
+            text = "Image $index"
+            textSize = 12f
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            setTextColor(Color.WHITE)
+            maxLines = 2
+            ellipsize = TextUtils.TruncateAt.END
+            gravity = Gravity.CENTER_HORIZONTAL
+            setPadding(0, dpToPx(4), 0, 0)
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+        }
+
+        cardLayout.addView(imageView)
+        cardLayout.addView(titleView)
+        return cardLayout
     }
 
     private fun createSectionTitle(title: String): LinearLayout {
         val sectionLayout = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
                 setMargins(0, dpToPx(20), 0, dpToPx(12))
             }
-            gravity = android.view.Gravity.CENTER_VERTICAL
+            gravity = Gravity.CENTER_VERTICAL
             setPadding(dpToPx(4), dpToPx(8), dpToPx(4), dpToPx(8))
         }
 
-        // Icon based on section type
         val iconRes = when (title.lowercase()) {
             "lesson plan" -> R.drawable.section_icon_lesson
-            "related videos" -> R.drawable.section_icon_video
+            "videos" -> R.drawable.section_icon_video
             "multiple choice questions" -> R.drawable.section_icon_quiz
+            "3d models" -> R.drawable.section_icon_lesson // Add this drawable
+            "images" -> R.drawable.section_icon_lesson // Add this drawable
             else -> R.drawable.section_icon_lesson
         }
 
@@ -494,17 +548,12 @@ class AiMasterDrawer(
             text = title
             textSize = 20f
             setTypeface(null, android.graphics.Typeface.BOLD)
-            setTextColor(android.graphics.Color.parseColor("#1F2937"))
-            layoutParams = LinearLayout.LayoutParams(
-                0,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                1f
-            )
+            setTextColor(Color.parseColor("#1F2937"))
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
         }
 
         sectionLayout.addView(iconView)
         sectionLayout.addView(titleView)
-
         return sectionLayout
     }
 
@@ -513,29 +562,24 @@ class AiMasterDrawer(
             orientation = LinearLayout.VERTICAL
             setPadding(dpToPx(16), dpToPx(12), dpToPx(16), dpToPx(12))
             setBackgroundResource(R.drawable.lesson_plan_card_background)
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
                 setMargins(0, dpToPx(6), 0, dpToPx(6))
             }
             elevation = 2f
         }
 
-        // Label with accent color
         val labelView = TextView(context).apply {
             text = label
             textSize = 14f
             setTypeface(null, android.graphics.Typeface.BOLD)
-            setTextColor(android.graphics.Color.parseColor("#667eea"))
+            setTextColor(Color.parseColor("#667eea"))
             letterSpacing = 0.02f
         }
 
-        // Content with better typography
         val contentView = TextView(context).apply {
             text = content
             textSize = 14f
-            setTextColor(android.graphics.Color.parseColor("#374151"))
+            setTextColor(Color.parseColor("#374151"))
             setPadding(0, dpToPx(8), 0, 0)
             setTextIsSelectable(true)
             setLineSpacing(1.3f, 1.0f)
@@ -543,77 +587,6 @@ class AiMasterDrawer(
 
         cardLayout.addView(labelView)
         cardLayout.addView(contentView)
-
-        return cardLayout
-    }
-
-    private fun createVideoCard(videoId: String, thumbnail: String, index: Int): LinearLayout {
-        val cardLayout = LinearLayout(context).apply {
-            orientation = LinearLayout.HORIZONTAL
-            setPadding(dpToPx(16), dpToPx(12), dpToPx(16), dpToPx(12))
-            setBackgroundResource(R.drawable.modern_video_card_background)
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                setMargins(0, dpToPx(6), 0, dpToPx(6))
-            }
-            isClickable = true
-            elevation = 2f
-            setOnClickListener {
-                openYouTubeVideo(videoId)
-            }
-        }
-
-        // Video thumbnail placeholder
-        val thumbnailView = ImageView(context).apply {
-            setImageResource(android.R.drawable.ic_media_play)
-            layoutParams = LinearLayout.LayoutParams(dpToPx(50), dpToPx(36)).apply {
-                setMargins(0, 0, dpToPx(12), 0)
-            }
-            setBackgroundResource(R.drawable.modern_card_background)
-            scaleType = ImageView.ScaleType.CENTER
-            setPadding(dpToPx(8), dpToPx(8), dpToPx(8), dpToPx(8))
-        }
-
-        // Video info
-        val textLayout = LinearLayout(context).apply {
-            orientation = LinearLayout.VERTICAL
-            layoutParams = LinearLayout.LayoutParams(
-                0,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                1f
-            )
-        }
-
-        val titleView = TextView(context).apply {
-            text = "Video $index"
-            textSize = 16f
-            setTypeface(null, android.graphics.Typeface.BOLD)
-            setTextColor(android.graphics.Color.parseColor("#1F2937"))
-        }
-
-        val idView = TextView(context).apply {
-            text = "Tap to watch on YouTube"
-            textSize = 12f
-            setTextColor(android.graphics.Color.parseColor("#6B7280"))
-            setPadding(0, dpToPx(2), 0, 0)
-        }
-
-        textLayout.addView(titleView)
-        textLayout.addView(idView)
-
-        // Play indicator
-        val playIndicator = ImageView(context).apply {
-            setImageResource(android.R.drawable.ic_media_play)
-            layoutParams = LinearLayout.LayoutParams(dpToPx(24), dpToPx(24))
-            setColorFilter(android.graphics.Color.parseColor("#E53E3E"))
-        }
-
-        cardLayout.addView(thumbnailView)
-        cardLayout.addView(textLayout)
-        cardLayout.addView(playIndicator)
-
         return cardLayout
     }
 
@@ -622,36 +595,26 @@ class AiMasterDrawer(
             orientation = LinearLayout.VERTICAL
             setPadding(dpToPx(16), dpToPx(12), dpToPx(16), dpToPx(12))
             setBackgroundResource(R.drawable.modern_mcq_card_background)
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
                 setMargins(0, dpToPx(6), 0, dpToPx(6))
             }
             elevation = 2f
         }
 
-        // Question header with number badge
         val questionHeader = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-            gravity = android.view.Gravity.CENTER_VERTICAL
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+            gravity = Gravity.CENTER_VERTICAL
         }
 
         val questionBadge = TextView(context).apply {
             text = "Q$index"
             textSize = 12f
             setTypeface(null, android.graphics.Typeface.BOLD)
-            setTextColor(android.graphics.Color.WHITE)
+            setTextColor(Color.WHITE)
             setPadding(dpToPx(8), dpToPx(4), dpToPx(8), dpToPx(4))
-            setBackgroundColor(android.graphics.Color.parseColor("#667eea"))
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
+            setBackgroundColor(Color.parseColor("#667eea"))
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
                 setMargins(0, 0, dpToPx(12), 0)
             }
         }
@@ -660,12 +623,8 @@ class AiMasterDrawer(
             text = mcq.getString("question")
             textSize = 15f
             setTypeface(null, android.graphics.Typeface.BOLD)
-            setTextColor(android.graphics.Color.parseColor("#1F2937"))
-            layoutParams = LinearLayout.LayoutParams(
-                0,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                1f
-            )
+            setTextColor(Color.parseColor("#1F2937"))
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
             setLineSpacing(1.3f, 1.0f)
         }
 
@@ -673,16 +632,11 @@ class AiMasterDrawer(
         questionHeader.addView(questionView)
         cardLayout.addView(questionHeader)
 
-        // Add some spacing
         val spacer = View(context).apply {
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                dpToPx(8)
-            )
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dpToPx(8))
         }
         cardLayout.addView(spacer)
 
-        // Options with better styling
         val options = mcq.getJSONArray("options")
         val answer = mcq.getString("answer")
 
@@ -692,22 +646,15 @@ class AiMasterDrawer(
 
             val optionLayout = LinearLayout(context).apply {
                 orientation = LinearLayout.HORIZONTAL
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                ).apply {
+                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
                     setMargins(0, dpToPx(4), 0, dpToPx(4))
                 }
                 setPadding(dpToPx(8), dpToPx(6), dpToPx(8), dpToPx(6))
-                if (isCorrect) {
-                    setBackgroundColor(android.graphics.Color.parseColor("#DCFCE7"))
-                } else {
-                    setBackgroundColor(android.graphics.Color.parseColor("#F9FAFB"))
-                }
+                setBackgroundColor(if (isCorrect) Color.parseColor("#DCFCE7") else Color.parseColor("#F9FAFB"))
             }
 
             val optionLabel = TextView(context).apply {
-                val prefix = when(i) {
+                val prefix = when (i) {
                     0 -> "A"
                     1 -> "B"
                     2 -> "C"
@@ -717,36 +664,21 @@ class AiMasterDrawer(
                 text = prefix
                 textSize = 12f
                 setTypeface(null, android.graphics.Typeface.BOLD)
-                setTextColor(android.graphics.Color.WHITE)
+                setTextColor(Color.WHITE)
                 setPadding(dpToPx(6), dpToPx(2), dpToPx(6), dpToPx(2))
-                setBackgroundColor(if (isCorrect)
-                    android.graphics.Color.parseColor("#16A34A")
-                else
-                    android.graphics.Color.parseColor("#6B7280"))
-                layoutParams = LinearLayout.LayoutParams(
-                    dpToPx(24),
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                ).apply {
+                setBackgroundColor(if (isCorrect) Color.parseColor("#16A34A") else Color.parseColor("#6B7280"))
+                layoutParams = LinearLayout.LayoutParams(dpToPx(24), LinearLayout.LayoutParams.WRAP_CONTENT).apply {
                     setMargins(0, 0, dpToPx(12), 0)
                 }
-                gravity = android.view.Gravity.CENTER
+                gravity = Gravity.CENTER
             }
 
             val optionText = TextView(context).apply {
                 text = option
                 textSize = 13f
-                setTextColor(if (isCorrect)
-                    android.graphics.Color.parseColor("#166534")
-                else
-                    android.graphics.Color.parseColor("#374151"))
-                if (isCorrect) {
-                    setTypeface(null, android.graphics.Typeface.BOLD)
-                }
-                layoutParams = LinearLayout.LayoutParams(
-                    0,
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                    1f
-                )
+                setTextColor(if (isCorrect) Color.parseColor("#166534") else Color.parseColor("#374151"))
+                if (isCorrect) setTypeface(null, android.graphics.Typeface.BOLD)
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
                 setLineSpacing(1.3f, 1.0f)
             }
 
@@ -767,12 +699,27 @@ class AiMasterDrawer(
         }
     }
 
+    private fun open3DModel(name: String) {
+        Toast.makeText(context, "Opening 3D Model: $name", Toast.LENGTH_SHORT).show() // Placeholder
+    }
+
+//    private fun showImageFullScreen(imageBase64: String) {
+//        val dialog = Dialog(context)
+//        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+//        dialog.setContentView(R.layout.dialog_fullscreen_image)
+//        val imageView = dialog.findViewById<ImageView>(R.id.iv_fullscreen_image)
+//        val decodedString = imageBase64.split(",")[1]
+//        val decodedByte = Base64.decode(decodedString, Base64.DEFAULT)
+//        val bitmap = BitmapFactory.decodeByteArray(decodedByte, 0, decodedByte.size)
+//        imageView.setImageBitmap(bitmap)
+//        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.BLACK))
+//        dialog.window?.setLayout(WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT)
+//        dialog.show()
+//    }
+
     private fun addSpacer() {
         val spacer = View(context).apply {
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                dpToPx(20)
-            )
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dpToPx(20))
         }
         resultsContainer.addView(spacer)
     }
@@ -782,7 +729,7 @@ class AiMasterDrawer(
     }
 
     fun dismiss() {
-        bottomSheetDialog?.dismiss()
+        dialog?.dismiss()
         coroutineScope.cancel()
     }
 }
