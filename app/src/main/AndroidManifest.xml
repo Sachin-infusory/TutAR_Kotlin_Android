@@ -61,6 +61,11 @@
             android:exported="false"
             android:screenOrientation="landscape"
             android:windowSoftInputMode="adjustResize" />
+        <activity
+            android:name="com.infusory.tutarapp.ui.assets.AssetLoaderActivity"
+            android:exported="false"
+            android:screenOrientation="landscape"
+            android:windowSoftInputMode="adjustResize" />
 
     </application>
 
