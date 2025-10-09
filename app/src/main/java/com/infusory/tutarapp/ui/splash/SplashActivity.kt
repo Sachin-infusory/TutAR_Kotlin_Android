@@ -18,6 +18,7 @@ import com.infusory.tutarapp.R
 import com.infusory.tutarapp.databinding.ActivitySplashBinding
 import com.infusory.tutarapp.ui.auth.LoginActivity
 import com.infusory.tutarapp.ui.auth.SessionExpiredActivity
+import com.infusory.tutarapp.ui.assets.AssetLoaderActivity
 import com.infusory.tutarapp.ui.whiteboard.WhiteboardActivity
 import java.text.SimpleDateFormat
 import java.util.*
@@ -34,6 +35,7 @@ class SplashActivity : AppCompatActivity() {
         private const val KEY_LOGIN_DATE = "login_date"
         private const val KEY_USER_EMAIL = "user_email"
         private const val KEY_SESSION_EXPIRED = "session_expired"
+        private const val KEY_IS_ASSET_LOADED = "isAssetLoaded"
         private const val SESSION_TIMEOUT_MINUTES = 30 * 24 * 60 // 30 days = 43,200 minutes
     }
 
@@ -177,11 +179,13 @@ class SplashActivity : AppCompatActivity() {
         val loginDate = sharedPreferences.getString(KEY_LOGIN_DATE, null)
         val loginTime = sharedPreferences.getString(KEY_LOGIN_TIME, null)
         val userEmail = sharedPreferences.getString(KEY_USER_EMAIL, null)
+        val isAssetLoaded = sharedPreferences.getBoolean(KEY_IS_ASSET_LOADED, false)
 
         android.util.Log.d("SplashActivity", "Login Status: $isLoggedIn")
         android.util.Log.d("SplashActivity", "Login Date: $loginDate")
         android.util.Log.d("SplashActivity", "Login Time: $loginTime")
         android.util.Log.d("SplashActivity", "User Email: $userEmail")
+        android.util.Log.d("SplashActivity", "Asset Loaded: $isAssetLoaded")
 
         when {
             // Login status is false - go to login
@@ -200,9 +204,14 @@ class SplashActivity : AppCompatActivity() {
                 markSessionAsPermanentlyExpired()
                 navigateToSessionExpired()
             }
-            // Session is valid - go to whiteboard
+            // Check if assets are not loaded - go to asset loader
+            !isAssetLoaded -> {
+                android.util.Log.d("SplashActivity", "Assets not loaded - navigating to AssetLoader")
+                navigateToAssetLoader()
+            }
+            // Session is valid and assets are loaded - go to whiteboard
             else -> {
-                android.util.Log.d("SplashActivity", "Valid session - navigating to Whiteboard")
+                android.util.Log.d("SplashActivity", "Valid session and assets loaded - navigating to Whiteboard")
                 navigateToWhiteboard()
             }
         }
@@ -254,6 +263,15 @@ class SplashActivity : AppCompatActivity() {
     private fun navigateToSessionExpired() {
         exitWithAnimation {
             val intent = Intent(this@SplashActivity, SessionExpiredActivity::class.java)
+            startActivity(intent)
+            overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
+            finish()
+        }
+    }
+
+    private fun navigateToAssetLoader() {
+        exitWithAnimation {
+            val intent = Intent(this@SplashActivity, AssetLoaderActivity::class.java)
             startActivity(intent)
             overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
             finish()

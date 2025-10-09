@@ -1,28 +1,14 @@
-// AnnotationToolView.kt - Fixed resize handle and selection
-package com.infusory.tutarapp.ui.annotation
+// AnnotationToolView.kt - Main View with Drawing Logic
+package com.infusory.tutarapp.ui.components.annotation
 
 import android.content.Context
 import android.graphics.*
-import android.graphics.drawable.GradientDrawable
 import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import android.view.View
-import android.widget.*
-import androidx.core.content.ContextCompat
-import com.infusory.tutarapp.R
-
-// Enum for annotation tools
-enum class AnnotationTool {
-    FREE_DRAW,
-    LINE,
-    RECTANGLE,
-    CIRCLE,
-    ARROW,
-    ERASER,
-    SELECTION
-}
+import android.widget.RelativeLayout
 
 // Drawing path data class
 data class DrawingPath(
@@ -41,226 +27,6 @@ sealed class DrawingAction {
     data class RemovePath(val path: DrawingPath, val index: Int) : DrawingAction()
 }
 
-// AnnotationToolbar class
-class AnnotationToolbar @JvmOverloads constructor(
-    context: Context,
-    attrs: AttributeSet? = null,
-    defStyleAttr: Int = 0
-) : LinearLayout(context, attrs, defStyleAttr) {
-
-    // Tool buttons
-    private lateinit var freeDrawButton: ImageButton
-    private lateinit var lineButton: ImageButton
-    private lateinit var rectangleButton: ImageButton
-    private lateinit var circleButton: ImageButton
-    private lateinit var arrowButton: ImageButton
-    private lateinit var eraserButton: ImageButton
-    private lateinit var selectionButton: ImageButton
-    private lateinit var undoButton: ImageButton
-    private lateinit var redoButton: ImageButton
-    private lateinit var clearButton: ImageButton
-
-    // Currently selected tool
-    private var selectedTool = AnnotationTool.FREE_DRAW
-
-    // Callbacks
-    var onToolSelected: ((AnnotationTool) -> Unit)? = null
-    var onUndoPressed: (() -> Unit)? = null
-    var onredoPressed: (() -> Unit)? = null
-    var onClearPressed: (() -> Unit)? = null
-    var onCloseAnnotation: (() -> Unit)? = null
-
-    init {
-        setupToolbar()
-    }
-
-    private fun setupToolbar() {
-        orientation = HORIZONTAL
-
-        // Set toolbar background
-        background = createToolbarBackground()
-
-        // Add padding
-        val padding = dpToPx(10)
-        setPadding(padding, padding, padding, padding)
-
-        // Create tool buttons
-        createToolButtons()
-
-        // Set initial selection
-        selectTool(AnnotationTool.FREE_DRAW)
-    }
-
-    private fun createToolbarBackground(): GradientDrawable {
-        return GradientDrawable().apply {
-            cornerRadius = dpToPx(15).toFloat()
-            setColor(ContextCompat.getColor(context, android.R.color.darker_gray))
-            alpha = 200 // Semi-transparent
-        }
-    }
-
-    private fun createToolButtons() {
-        // Free Draw Button
-        freeDrawButton = createToolButton(R.drawable.ic_write_tool, "Free Draw") {
-            selectTool(AnnotationTool.FREE_DRAW)
-        }
-        addView(freeDrawButton)
-
-        addSeparator()
-
-        // Line Button
-        lineButton = createToolButton(R.drawable.ic_line_tool, "Line") {
-            selectTool(AnnotationTool.LINE)
-        }
-        addView(lineButton)
-
-        // Rectangle Button
-        rectangleButton = createToolButton(R.drawable.ic_square_tool, "Rectangle") {
-            selectTool(AnnotationTool.RECTANGLE)
-        }
-        addView(rectangleButton)
-
-        // Circle Button
-        circleButton = createToolButton(R.drawable.ic_circle_tool, "Circle") {
-            selectTool(AnnotationTool.CIRCLE)
-        }
-        addView(circleButton)
-
-        // Arrow Button
-        arrowButton = createToolButton(R.drawable.ic_arrow_tool, "Arrow") {
-            selectTool(AnnotationTool.ARROW)
-        }
-        addView(arrowButton)
-
-        addSeparator()
-
-        // Eraser Button
-        eraserButton = createToolButton(R.drawable.ic_eraser_tool, "Eraser") {
-            selectTool(AnnotationTool.ERASER)
-        }
-        addView(eraserButton)
-
-        // Selection Button
-        selectionButton = createToolButton(R.drawable.ic_select_tool, "Selection") {
-            selectTool(AnnotationTool.SELECTION)
-        }
-        addView(selectionButton)
-
-        addSeparator()
-
-        // Undo Button
-        undoButton = createToolButton(R.drawable.ic_undo_tool, "Undo") {
-            onUndoPressed?.invoke()
-        }
-        addView(undoButton)
-
-        // Redo Button
-        redoButton = createToolButton(R.drawable.ic_redo_tool, "Redo") {
-            onredoPressed?.invoke()
-        }
-        addView(redoButton)
-        addSeparator()
-
-        // Clear Button
-        clearButton = createToolButton(R.drawable.ic_clear_tool, "Clear") {
-            onClearPressed?.invoke()
-        }
-        addView(clearButton)
-    }
-
-    private fun createToolButton(
-        iconRes: Int,
-        contentDescription: String,
-        onClick: () -> Unit
-    ): ImageButton {
-        return ImageButton(context).apply {
-            layoutParams = LinearLayout.LayoutParams(dpToPx(30), dpToPx(30)).apply {
-                marginStart = dpToPx(4)
-                marginEnd = dpToPx(4)
-            }
-
-            background = createButtonBackground(false)
-            setImageResource(iconRes)
-            setPadding(dpToPx(8), dpToPx(8), dpToPx(8), dpToPx(8))
-            this.contentDescription = contentDescription
-
-            setOnClickListener { onClick() }
-        }
-    }
-
-    private fun addSeparator() {
-        val separator = View(context).apply {
-            layoutParams = LinearLayout.LayoutParams(dpToPx(1), dpToPx(30)).apply {
-                marginStart = dpToPx(8)
-                marginEnd = dpToPx(8)
-            }
-            setBackgroundColor(ContextCompat.getColor(context, android.R.color.darker_gray))
-        }
-        addView(separator)
-    }
-
-    private fun createButtonBackground(selected: Boolean): GradientDrawable {
-        return GradientDrawable().apply {
-            cornerRadius = dpToPx(8).toFloat()
-            if (selected) {
-                setColor(ContextCompat.getColor(context, android.R.color.holo_blue_light))
-            } else {
-                setColor(ContextCompat.getColor(context, android.R.color.background_light))
-            }
-        }
-    }
-
-    private fun selectTool(tool: AnnotationTool) {
-        // Clear previous selection
-        clearAllSelections()
-
-        // Set new selection
-        selectedTool = tool
-        val selectedButton = when (tool) {
-            AnnotationTool.FREE_DRAW -> freeDrawButton
-            AnnotationTool.LINE -> lineButton
-            AnnotationTool.RECTANGLE -> rectangleButton
-            AnnotationTool.CIRCLE -> circleButton
-            AnnotationTool.ARROW -> arrowButton
-            AnnotationTool.ERASER -> eraserButton
-            AnnotationTool.SELECTION -> selectionButton
-        }
-
-        selectedButton.background = createButtonBackground(true)
-        onToolSelected?.invoke(tool)
-    }
-
-    private fun clearAllSelections() {
-        val buttons = listOf(
-            freeDrawButton, lineButton, rectangleButton,
-            circleButton, arrowButton, eraserButton, selectionButton
-        )
-
-        buttons.forEach { button ->
-            button.background = createButtonBackground(false)
-        }
-    }
-
-    private fun dpToPx(dp: Int): Int {
-        return (dp * context.resources.displayMetrics.density).toInt()
-    }
-
-    fun getSelectedTool(): AnnotationTool = selectedTool
-
-    fun setToolbarEnabled(enabled: Boolean) {
-        val buttons = listOf(
-            freeDrawButton, lineButton, rectangleButton,
-            circleButton, arrowButton, eraserButton, selectionButton,
-            undoButton, redoButton, clearButton
-        )
-
-        buttons.forEach { button ->
-            button.isEnabled = enabled
-            button.alpha = if (enabled) 1.0f else 0.5f
-        }
-    }
-}
-
 // Main AnnotationToolView class
 class AnnotationToolView @JvmOverloads constructor(
     context: Context,
@@ -268,19 +34,11 @@ class AnnotationToolView @JvmOverloads constructor(
     defStyleAttr: Int = 0,
 ) : RelativeLayout(context, attrs, defStyleAttr) {
 
-    // Drawing surface - ALWAYS VISIBLE to preserve drawings
     private var drawingView: DrawingSurfaceView? = null
-
-    // Toolbar
     private var annotationToolbar: AnnotationToolbar? = null
-
-    // State
     private var isAnnotationMode = false
 
-    // Callbacks
     var onAnnotationToggle: ((Boolean) -> Unit)? = null
-
-    // Callback for 3D rendering control
     var onDrawingStateChanged: ((isDrawing: Boolean) -> Unit)? = null
 
     init {
@@ -288,7 +46,6 @@ class AnnotationToolView @JvmOverloads constructor(
     }
 
     private fun setupAnnotationTool() {
-        // Create drawing view - ALWAYS VISIBLE
         drawingView = DrawingSurfaceView(context)
         val drawingParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
         drawingView?.layoutParams = drawingParams
@@ -296,7 +53,6 @@ class AnnotationToolView @JvmOverloads constructor(
         drawingView?.setTouchEnabled(false)
         addView(drawingView)
 
-        // Create toolbar
         annotationToolbar = AnnotationToolbar(context)
         val toolbarParams = LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT)
         toolbarParams.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM)
@@ -306,16 +62,24 @@ class AnnotationToolView @JvmOverloads constructor(
         annotationToolbar?.visibility = View.GONE
         addView(annotationToolbar)
 
-        // Set up toolbar callbacks
         annotationToolbar?.onToolSelected = { tool: AnnotationTool ->
             drawingView?.clearSelection()
             drawingView?.setDrawingTool(tool)
         }
 
+        annotationToolbar?.onColorChanged = { color ->
+            drawingView?.setDrawingColor(color)
+        }
+
+        annotationToolbar?.onStrokeWidthChanged = { width ->
+            drawingView?.setStrokeWidth(width)
+        }
+
         annotationToolbar?.onUndoPressed = {
             drawingView?.undoLastAction()
         }
-        annotationToolbar?.onredoPressed = {
+
+        annotationToolbar?.onRedoPressed = {
             drawingView?.redoLastAction()
         }
 
@@ -328,7 +92,6 @@ class AnnotationToolView @JvmOverloads constructor(
             toggleAnnotationMode(false)
         }
 
-        // Set up drawing state callback
         drawingView?.onDrawingStateChanged = { isDrawing ->
             onDrawingStateChanged?.invoke(isDrawing)
         }
@@ -343,6 +106,7 @@ class AnnotationToolView @JvmOverloads constructor(
             drawingView?.clearSelection()
         } else {
             annotationToolbar?.visibility = View.GONE
+            annotationToolbar?.dismissColorPicker()
             drawingView?.setTouchEnabled(false)
             drawingView?.clearSelection()
         }
@@ -361,7 +125,7 @@ class AnnotationToolView @JvmOverloads constructor(
         drawingView?.undoLastAction()
     }
 
-    // Custom drawing view using SurfaceView for better performance
+    // DrawingSurfaceView - handles all drawing logic
     inner class DrawingSurfaceView @JvmOverloads constructor(
         context: Context,
         attrs: AttributeSet? = null,
@@ -378,7 +142,6 @@ class AnnotationToolView @JvmOverloads constructor(
             strokeJoin = Paint.Join.ROUND
         }
 
-        // Selection state
         private var selectedPath: DrawingPath? = null
         private var isResizing = false
         private var lastTouchX = 0f
@@ -395,20 +158,16 @@ class AnnotationToolView @JvmOverloads constructor(
         private var isDrawing = false
         private var touchEnabled = false
 
-        // Undo/Redo stacks
         private var actionHistory = mutableListOf<DrawingAction>()
         private var redoHistory = mutableListOf<DrawingAction>()
 
-        // Bitmap for persistent drawing
         private var drawingBitmap: Bitmap? = null
         private var drawingCanvas: Canvas? = null
-
-        // Drawing thread
         private var drawingThread: DrawingThread? = null
         private var surfaceReady = false
 
-        // Resize handle size
         private val handleSize = 30f
+        private var lastErasedPath: DrawingPath? = null
 
         var onDrawingStateChanged: ((Boolean) -> Unit)? = null
 
@@ -416,6 +175,14 @@ class AnnotationToolView @JvmOverloads constructor(
             holder.addCallback(this)
             setZOrderOnTop(true)
             holder.setFormat(PixelFormat.TRANSPARENT)
+        }
+
+        fun setDrawingColor(color: Int) {
+            paint.color = color
+        }
+
+        fun setStrokeWidth(width: Float) {
+            paint.strokeWidth = width
         }
 
         override fun surfaceCreated(holder: SurfaceHolder) {
@@ -453,100 +220,102 @@ class AnnotationToolView @JvmOverloads constructor(
             try {
                 canvas = holder.lockCanvas()
                 canvas?.let { c ->
-                    // Clear canvas with transparent background
                     c.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
 
-                    // Draw the persistent bitmap
                     drawingBitmap?.let { bitmap ->
                         c.drawBitmap(bitmap, 0f, 0f, null)
                     }
 
-                    // Draw current path being drawn
                     if (isDrawing && touchEnabled && currentTool != AnnotationTool.SELECTION && currentTool != AnnotationTool.ERASER) {
                         c.drawPath(currentPath, paint)
                     }
 
-                    // Draw eraser cursor when eraser is active
                     if (touchEnabled && currentTool == AnnotationTool.ERASER) {
-                        val cursorPaint = Paint().apply {
-                            color = Color.RED
-                            alpha = 100
-                            style = Paint.Style.FILL
-                            isAntiAlias = true
-                        }
-                        val strokePaint = Paint().apply {
-                            color = Color.RED
-                            alpha = 200
-                            style = Paint.Style.STROKE
-                            strokeWidth = 2f
-                            isAntiAlias = true
-                        }
-                        val radius = 20f
-                        c.drawCircle(eraserCursorX, eraserCursorY, radius, cursorPaint)
-                        c.drawCircle(eraserCursorX, eraserCursorY, radius, strokePaint)
-
-                        // Draw crosshair
-                        val crosshairSize = 10f
-                        c.drawLine(
-                            eraserCursorX - crosshairSize, eraserCursorY,
-                            eraserCursorX + crosshairSize, eraserCursorY,
-                            strokePaint
-                        )
-                        c.drawLine(
-                            eraserCursorX, eraserCursorY - crosshairSize,
-                            eraserCursorX, eraserCursorY + crosshairSize,
-                            strokePaint
-                        )
+                        drawEraserCursor(c)
                     }
 
-                    // Highlight selection
                     selectedPath?.let {
-                        val highlightPaint = Paint().apply {
-                            color = Color.BLUE
-                            style = Paint.Style.STROKE
-                            strokeWidth = 3f
-                            pathEffect = DashPathEffect(floatArrayOf(10f, 10f), 0f)
-                        }
-                        it.updateBounds()
-                        c.drawRect(it.bounds, highlightPaint)
-
-                        // Draw resize handle - centered on the corner
-                        val handlePaint = Paint().apply {
-                            color = Color.BLUE
-                            style = Paint.Style.FILL
-                            alpha = 150
-                        }
-                        val handleStrokePaint = Paint().apply {
-                            color = Color.WHITE
-                            style = Paint.Style.STROKE
-                            strokeWidth = 2f
-                        }
-
-                        // Draw handle as a circle centered on the bottom-right corner
-                        val handleCenterX = it.bounds.right
-                        val handleCenterY = it.bounds.bottom
-                        val handleRadius = handleSize / 2
-
-                        c.drawCircle(handleCenterX, handleCenterY, handleRadius, handlePaint)
-                        c.drawCircle(handleCenterX, handleCenterY, handleRadius, handleStrokePaint)
-
-                        // Draw a small cross in the center for better visibility
-                        val crossSize = 6f
-                        c.drawLine(
-                            handleCenterX - crossSize, handleCenterY,
-                            handleCenterX + crossSize, handleCenterY,
-                            handleStrokePaint
-                        )
-                        c.drawLine(
-                            handleCenterX, handleCenterY - crossSize,
-                            handleCenterX, handleCenterY + crossSize,
-                            handleStrokePaint
-                        )
+                        drawSelection(c, it)
                     }
                 }
             } finally {
                 canvas?.let { holder.unlockCanvasAndPost(it) }
             }
+        }
+
+        private fun drawEraserCursor(canvas: Canvas) {
+            val cursorPaint = Paint().apply {
+                color = Color.RED
+                alpha = 100
+                style = Paint.Style.FILL
+                isAntiAlias = true
+            }
+            val strokePaint = Paint().apply {
+                color = Color.RED
+                alpha = 200
+                style = Paint.Style.STROKE
+                strokeWidth = 2f
+                isAntiAlias = true
+            }
+            val radius = 20f
+            canvas.drawCircle(eraserCursorX, eraserCursorY, radius, cursorPaint)
+            canvas.drawCircle(eraserCursorX, eraserCursorY, radius, strokePaint)
+
+            // Draw crosshair
+            val crosshairSize = 10f
+            canvas.drawLine(
+                eraserCursorX - crosshairSize, eraserCursorY,
+                eraserCursorX + crosshairSize, eraserCursorY,
+                strokePaint
+            )
+            canvas.drawLine(
+                eraserCursorX, eraserCursorY - crosshairSize,
+                eraserCursorX, eraserCursorY + crosshairSize,
+                strokePaint
+            )
+        }
+
+        private fun drawSelection(canvas: Canvas, path: DrawingPath) {
+            val highlightPaint = Paint().apply {
+                color = Color.BLUE
+                style = Paint.Style.STROKE
+                strokeWidth = 3f
+                pathEffect = DashPathEffect(floatArrayOf(10f, 10f), 0f)
+            }
+            path.updateBounds()
+            canvas.drawRect(path.bounds, highlightPaint)
+
+            // Draw resize handle
+            val handlePaint = Paint().apply {
+                color = Color.BLUE
+                style = Paint.Style.FILL
+                alpha = 150
+            }
+            val handleStrokePaint = Paint().apply {
+                color = Color.WHITE
+                style = Paint.Style.STROKE
+                strokeWidth = 2f
+            }
+
+            val handleCenterX = path.bounds.right
+            val handleCenterY = path.bounds.bottom
+            val handleRadius = handleSize / 2
+
+            canvas.drawCircle(handleCenterX, handleCenterY, handleRadius, handlePaint)
+            canvas.drawCircle(handleCenterX, handleCenterY, handleRadius, handleStrokePaint)
+
+            // Draw crosshair in handle
+            val crossSize = 6f
+            canvas.drawLine(
+                handleCenterX - crossSize, handleCenterY,
+                handleCenterX + crossSize, handleCenterY,
+                handleStrokePaint
+            )
+            canvas.drawLine(
+                handleCenterX, handleCenterY - crossSize,
+                handleCenterX, handleCenterY + crossSize,
+                handleStrokePaint
+            )
         }
 
         override fun onTouchEvent(event: MotionEvent): Boolean {
@@ -555,7 +324,6 @@ class AnnotationToolView @JvmOverloads constructor(
             val x = event.x
             val y = event.y
 
-            // Update eraser cursor position
             if (currentTool == AnnotationTool.ERASER) {
                 eraserCursorX = x
                 eraserCursorY = y
@@ -564,60 +332,66 @@ class AnnotationToolView @JvmOverloads constructor(
 
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
-                    if (currentTool == AnnotationTool.SELECTION) {
-                        handleSelectionDown(x, y)
-                        return true
-                    } else if (currentTool == AnnotationTool.ERASER) {
-                        handleEraserTouch(x, y)
-                        return true
-                    } else {
-                        startDrawing(x, y)
-                        return true
+                    return when (currentTool) {
+                        AnnotationTool.SELECTION -> {
+                            handleSelectionDown(x, y)
+                            true
+                        }
+                        AnnotationTool.ERASER -> {
+                            handleEraserTouch(x, y)
+                            true
+                        }
+                        else -> {
+                            startDrawing(x, y)
+                            true
+                        }
                     }
                 }
 
                 MotionEvent.ACTION_MOVE -> {
-                    if (currentTool == AnnotationTool.SELECTION) {
-                        handleSelectionMove(x, y)
-                        return true
-                    } else if (currentTool == AnnotationTool.ERASER) {
-                        handleEraserTouch(x, y)
-                        return true
-                    } else {
-                        continueDrawing(x, y)
-                        return true
+                    return when (currentTool) {
+                        AnnotationTool.SELECTION -> {
+                            handleSelectionMove(x, y)
+                            true
+                        }
+                        AnnotationTool.ERASER -> {
+                            handleEraserTouch(x, y)
+                            true
+                        }
+                        else -> {
+                            continueDrawing(x, y)
+                            true
+                        }
                     }
                 }
 
                 MotionEvent.ACTION_UP -> {
-                    if (currentTool == AnnotationTool.SELECTION) {
-                        isResizing = false
-                        return true
-                    } else if (currentTool == AnnotationTool.ERASER) {
-                        // Reset the last erased path when touch is released
-                        lastErasedPath = null
-                        return true
-                    } else {
-                        finishDrawing(x, y)
-                        return true
+                    return when (currentTool) {
+                        AnnotationTool.SELECTION -> {
+                            isResizing = false
+                            true
+                        }
+                        AnnotationTool.ERASER -> {
+                            lastErasedPath = null
+                            true
+                        }
+                        else -> {
+                            finishDrawing(x, y)
+                            true
+                        }
                     }
                 }
             }
             return false
         }
 
-        private var lastErasedPath: DrawingPath? = null
-
         private fun handleEraserTouch(x: Float, y: Float) {
-            // Find the first path that contains the touch point
             var pathToRemove: DrawingPath? = null
             var pathIndex = -1
 
-            // Check paths in reverse order (top to bottom) for more intuitive erasing
             for (i in paths.indices.reversed()) {
                 val path = paths[i]
                 path.updateBounds()
-                // Expand bounds slightly for easier touch detection
                 val expandedBounds = RectF(path.bounds).apply {
                     inset(-20f, -20f)
                 }
@@ -625,22 +399,18 @@ class AnnotationToolView @JvmOverloads constructor(
                 if (expandedBounds.contains(x, y)) {
                     pathToRemove = path
                     pathIndex = i
-                    break // Only take the first (topmost) matching path
+                    break
                 }
             }
 
-            // Remove only if it's a different path than the last erased one
-            // This prevents erasing multiple elements in one continuous touch
             if (pathToRemove != null && pathToRemove != lastErasedPath && pathIndex != -1) {
                 lastErasedPath = pathToRemove
                 paths.removeAt(pathIndex)
 
-                // Add to action history for undo/redo
                 val action = DrawingAction.RemovePath(pathToRemove, pathIndex)
                 actionHistory.add(action)
-                redoHistory.clear() // Clear redo history when a new action is performed
+                redoHistory.clear()
 
-                // Redraw all remaining paths
                 drawingCanvas?.let { canvas ->
                     canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
                     paths.forEach { drawingPath ->
@@ -656,7 +426,7 @@ class AnnotationToolView @JvmOverloads constructor(
             selectedPath = null
             isResizing = false
 
-            // First check if touching a resize handle
+            // Check if touching a resize handle
             for (path in paths.reversed()) {
                 path.updateBounds()
                 val handleRect = RectF(
@@ -676,10 +446,9 @@ class AnnotationToolView @JvmOverloads constructor(
                 }
             }
 
-            // If not touching a handle, check if touching a path for moving
+            // Check if touching a path for moving
             for (path in paths.reversed()) {
                 path.updateBounds()
-                // Expand bounds slightly for easier touch detection
                 val expandedBounds = RectF(path.bounds).apply {
                     inset(-10f, -10f)
                 }
@@ -703,11 +472,9 @@ class AnnotationToolView @JvmOverloads constructor(
                 val dy = y - lastTouchY
 
                 if (isResizing) {
-                    // Calculate scale based on movement from the opposite corner
                     val newWidth = path.bounds.width() + dx
                     val newHeight = path.bounds.height() + dy
 
-                    // Prevent negative or too small sizes
                     if (newWidth > 20f && newHeight > 20f) {
                         val scaleX = newWidth / path.bounds.width()
                         val scaleY = newHeight / path.bounds.height()
@@ -719,7 +486,6 @@ class AnnotationToolView @JvmOverloads constructor(
                         path.updateBounds()
                     }
                 } else {
-                    // Move the path
                     val matrix = Matrix().apply { setTranslate(dx, dy) }
                     path.path.transform(matrix)
                     path.updateBounds()
@@ -728,7 +494,6 @@ class AnnotationToolView @JvmOverloads constructor(
                 lastTouchX = x
                 lastTouchY = y
 
-                // Redraw all paths with the moved/resized path
                 drawingCanvas?.let { canvas ->
                     canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
                     paths.forEach { drawingPath ->
@@ -817,10 +582,9 @@ class AnnotationToolView @JvmOverloads constructor(
                 paths.add(newPath)
                 drawingCanvas?.drawPath(currentPath, paint)
 
-                // Add to action history
                 val action = DrawingAction.AddPath(newPath)
                 actionHistory.add(action)
-                redoHistory.clear() // Clear redo history when a new action is performed
+                redoHistory.clear()
 
                 currentPath.reset()
             }
@@ -885,19 +649,16 @@ class AnnotationToolView @JvmOverloads constructor(
 
                 when (action) {
                     is DrawingAction.AddPath -> {
-                        // Undo adding a path by removing it
                         paths.remove(action.path)
                         if (selectedPath == action.path) {
                             selectedPath = null
                         }
                     }
                     is DrawingAction.RemovePath -> {
-                        // Undo removing a path by adding it back at its original position
                         paths.add(action.index, action.path)
                     }
                 }
 
-                // Redraw all paths
                 drawingCanvas?.let { canvas ->
                     canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
                     paths.forEach { drawingPath ->
@@ -916,17 +677,14 @@ class AnnotationToolView @JvmOverloads constructor(
 
                 when (action) {
                     is DrawingAction.AddPath -> {
-                        // Redo adding a path
                         paths.add(action.path)
                         drawingCanvas?.drawPath(action.path.path, action.path.paint)
                     }
                     is DrawingAction.RemovePath -> {
-                        // Redo removing a path
                         paths.remove(action.path)
                     }
                 }
 
-                // Redraw all paths
                 drawingCanvas?.let { canvas ->
                     canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
                     paths.forEach { drawingPath ->

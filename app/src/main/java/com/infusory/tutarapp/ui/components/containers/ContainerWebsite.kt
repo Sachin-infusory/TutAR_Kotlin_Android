@@ -26,6 +26,9 @@ class ContainerWebsite @JvmOverloads constructor(
     private var urlInputField: EditText? = null
     private var isLoading = false
 
+    // Track interaction mode
+    private var isWebInteractionMode = false
+
     init {
         setupWebsiteContainer()
         setPadding(4, 4, 4, 4)
@@ -33,16 +36,25 @@ class ContainerWebsite @JvmOverloads constructor(
 
     private fun setupWebsiteContainer() {
         val buttons = listOf(
+            // Close button - positioned outside top-left
             ControlButton(
                 iconRes = android.R.drawable.ic_menu_close_clear_cancel,
                 onClick = { onRemoveRequest?.invoke() },
-                position = ButtonPosition.TOP_START
+                position = ButtonPosition.OUTSIDE_TOP_START
             ),
+            // Toggle interaction button - below close button
+            ControlButton(
+                iconRes = android.R.drawable.ic_menu_edit,
+                onClick = { toggleInteractionMode() },
+                position = ButtonPosition.OUTSIDE_TOP_START_BELOW
+            ),
+            // Info button - top center
             ControlButton(
                 iconRes = android.R.drawable.ic_menu_info_details,
                 onClick = { showWebsiteInfo() },
                 position = ButtonPosition.TOP_CENTER
             ),
+            // Reload button - top end
             ControlButton(
                 iconRes = android.R.drawable.ic_menu_revert,
                 onClick = { reloadWebsite() },
@@ -51,6 +63,37 @@ class ContainerWebsite @JvmOverloads constructor(
         )
 
         addControlButtons(buttons)
+    }
+
+    private fun toggleInteractionMode() {
+        isWebInteractionMode = !isWebInteractionMode
+
+        // Update container dragging based on mode
+        isDraggingEnabled = !isWebInteractionMode
+        isResizingEnabled = !isWebInteractionMode
+
+        // Update visual feedback
+        updateInteractionModeVisuals()
+
+        val message = if (isWebInteractionMode) {
+            "Web Interaction Mode: You can now interact with the webpage"
+        } else {
+            "Container Mode: You can now move and resize the container"
+        }
+        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+    }
+
+    private fun updateInteractionModeVisuals() {
+        // Change border color based on mode
+        if (isWebInteractionMode) {
+            // Green tint to indicate web interaction mode
+            setBackgroundResource(com.infusory.tutarapp.R.drawable.dotted_border_background)
+            alpha = 1.0f
+        } else {
+            // Normal appearance for container mode
+            setBackgroundResource(com.infusory.tutarapp.R.drawable.dotted_border_background)
+            alpha = 0.95f
+        }
     }
 
     override fun initializeContent() {
@@ -237,6 +280,7 @@ class ContainerWebsite @JvmOverloads constructor(
             } else {
                 append("No website loaded\n")
             }
+            append("Interaction Mode: ${if (isWebInteractionMode) "Web" else "Container"}\n")
             append("Container Size: ${width} x ${height}")
         }
 
@@ -278,7 +322,8 @@ class ContainerWebsite @JvmOverloads constructor(
         baseData.putAll(mapOf(
             "url" to (currentUrl ?: ""),
             "title" to (currentTitle ?: ""),
-            "isLoading" to isLoading
+            "isLoading" to isLoading,
+            "isWebInteractionMode" to isWebInteractionMode
         ))
         return baseData
     }
@@ -289,6 +334,15 @@ class ContainerWebsite @JvmOverloads constructor(
         data["url"]?.let { url ->
             if (url is String && url.isNotEmpty()) {
                 setWebsiteUrl(url)
+            }
+        }
+
+        data["isWebInteractionMode"]?.let { mode ->
+            if (mode is Boolean) {
+                isWebInteractionMode = mode
+                isDraggingEnabled = !mode
+                isResizingEnabled = !mode
+                updateInteractionModeVisuals()
             }
         }
     }

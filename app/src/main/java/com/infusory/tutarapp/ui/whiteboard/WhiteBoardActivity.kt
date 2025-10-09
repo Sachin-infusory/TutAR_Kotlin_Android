@@ -15,7 +15,7 @@ import androidx.camera.view.PreviewView
 import androidx.core.app.ActivityCompat
 import com.infusory.tutarapp.R
 import com.infusory.tutarapp.ui.ai.AiMasterDrawer
-import com.infusory.tutarapp.ui.annotation.AnnotationToolView
+import com.infusory.tutarapp.ui.components.annotation.AnnotationToolView
 import com.infusory.tutarapp.ui.data.ModelData
 import com.infusory.tutarapp.ui.models.ModelBrowserDrawer
 import com.infusory.tutarapp.ui.components.containers.ContainerManager
