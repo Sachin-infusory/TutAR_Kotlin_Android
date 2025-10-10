@@ -22,7 +22,9 @@ data class ControlButton(
 enum class ButtonPosition {
     TOP_START, TOP_CENTER, TOP_END,
     BOTTOM_START, BOTTOM_CENTER, BOTTOM_END,
-    CENTER_START, CENTER_END
+    CENTER_START, CENTER_END,
+    OUTSIDE_TOP_START,           // New: Outside container, top-left
+    OUTSIDE_TOP_START_BELOW
 }
 
 open class UnifiedDraggableZoomableContainer @JvmOverloads constructor(
@@ -225,6 +227,10 @@ open class UnifiedDraggableZoomableContainer @JvmOverloads constructor(
                     existingLayoutParams.gravity == (Gravity.CENTER_VERTICAL or Gravity.START)
                 ButtonPosition.CENTER_END ->
                     existingLayoutParams.gravity == (Gravity.CENTER_VERTICAL or Gravity.END)
+                ButtonPosition.OUTSIDE_TOP_START ->
+                    existingLayoutParams.gravity == (Gravity.TOP or Gravity.START)
+                ButtonPosition.OUTSIDE_TOP_START_BELOW ->
+                    existingLayoutParams.gravity == (Gravity.TOP or Gravity.START)
             }
         }
 
@@ -269,6 +275,27 @@ open class UnifiedDraggableZoomableContainer @JvmOverloads constructor(
             ButtonPosition.CENTER_END -> {
                 layoutParams.setMargins(0, verticalOffset, -(buttonSize + dpToPx(8)), 0)
                 layoutParams.gravity = Gravity.CENTER_VERTICAL or Gravity.END
+            }
+            // ADD THESE TWO NEW CASES:
+            ButtonPosition.OUTSIDE_TOP_START -> {
+                // Position completely outside the container, top-left
+                layoutParams.setMargins(
+                    -(buttonSize + dpToPx(12)),  // Left of container
+                    -(buttonSize + dpToPx(12)),  // Above container
+                    0,
+                    0
+                )
+                layoutParams.gravity = Gravity.TOP or Gravity.START
+            }
+            ButtonPosition.OUTSIDE_TOP_START_BELOW -> {
+                // Position below the OUTSIDE_TOP_START button
+                layoutParams.setMargins(
+                    -(buttonSize + dpToPx(12)),  // Left of container (same as above)
+                    -(buttonSize + dpToPx(12)) + (buttonSize + dpToPx(8)),  // Below the first button
+                    0,
+                    0
+                )
+                layoutParams.gravity = Gravity.TOP or Gravity.START
             }
         }
         button.layoutParams = layoutParams

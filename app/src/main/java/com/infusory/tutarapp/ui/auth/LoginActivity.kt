@@ -17,6 +17,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.lifecycleScope
 import com.infusory.tutarapp.R
 import com.infusory.tutarapp.databinding.ActivityLoginBinding
+import com.infusory.tutarapp.ui.assets.AssetLoaderActivity
 import com.infusory.tutarapp.ui.whiteboard.WhiteboardActivity
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -51,7 +52,7 @@ class LoginActivity : AppCompatActivity() {
 
         // Check if user is already logged in
         if (isUserLoggedIn()) {
-            navigateToWhiteboard()
+            navigateAssetLoader()
             return
         }
 
@@ -153,7 +154,7 @@ class LoginActivity : AppCompatActivity() {
                         hideLoading()
                         // Save login state before navigating
                         saveLoginState(binding.etEmail.text.toString().trim())
-                        navigateToWhiteboard()
+                        navigateAssetLoader()
                     }
                     is LoginState.Error -> {
                         hideLoading()
@@ -250,8 +251,8 @@ class LoginActivity : AppCompatActivity() {
         shakeAnimator.start()
     }
 
-    private fun navigateToWhiteboard() {
-        startActivity(Intent(this, WhiteboardActivity::class.java))
+    private fun navigateAssetLoader() {
+        startActivity(Intent(this, AssetLoaderActivity::class.java))
         overridePendingTransition(R.drawable.slide_in_right, R.drawable.slide_out_left)
         finish()
     }
