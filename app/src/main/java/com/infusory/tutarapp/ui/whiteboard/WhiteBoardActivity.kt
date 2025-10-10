@@ -601,4 +601,130 @@ class WhiteboardActivity : AppCompatActivity() {
             super.onBackPressed()
         }
     }
+
+    // Add this method to WhiteboardActivity
+    fun addImageContainerFromBase64(imageBase64: String) {
+        try {
+            // Decode the base64 string to bitmap
+            val decodedString = if (imageBase64.contains(",")) {
+                imageBase64.split(",")[1] // Remove data URI prefix if present
+            } else {
+                imageBase64
+            }
+            val decodedByte = android.util.Base64.decode(decodedString, android.util.Base64.DEFAULT)
+            val bitmap = android.graphics.BitmapFactory.decodeByteArray(decodedByte, 0, decodedByte.size)
+
+            if (bitmap != null) {
+                // Create a new ContainerImage
+                val containerImage = com.infusory.tutarapp.ui.components.containers.ContainerImage(this)
+
+                // Set the bitmap to the container
+                containerImage.setImage(bitmap, "base64_image_${System.currentTimeMillis()}")
+
+                // Set layout params
+                val layoutParams = RelativeLayout.LayoutParams(
+                    containerImage.getDefaultWidth(),
+                    containerImage.getDefaultHeight()
+                )
+                containerImage.layoutParams = layoutParams
+
+                // Set elevation to ensure containers are above camera but below annotation
+                containerImage.elevation = 50f
+
+                // Position the container with offset
+                val offsetX = containerManager.getContainerCount() * 60f + 100f
+                val offsetY = containerManager.getContainerCount() * 60f + 200f
+                containerImage.moveContainerTo(offsetX, offsetY, animate = false)
+
+                // Set remove callback
+                containerImage.onRemoveRequest = {
+                    containerManager.removeContainer(containerImage)
+                }
+
+                // Add to main layout
+                mainLayout.addView(containerImage)
+
+                // Initialize content
+                containerImage.initializeContent()
+
+                // Register with container manager (if your ContainerManager supports it)
+                // containerManager.addContainer(containerImage) // Uncomment if this method exists
+
+                Toast.makeText(this, "Image added to canvas", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this, "Failed to decode image", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("WhiteboardActivity", "Error adding image to container", e)
+            Toast.makeText(this, "Error adding image: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // Add this method to WhiteboardActivity class
+    fun addYouTubeContainerWithUrl(youtubeUrl: String) {
+        try {
+            // Use the existing containerManager to add YouTube container
+            val youtubeContainer = containerManager.addYouTubeContainer()
+
+            // Set the YouTube URL to the container
+            if (youtubeContainer is com.infusory.tutarapp.ui.components.containers.ContainerYouTube) {
+                youtubeContainer.setYouTubeUrl(youtubeUrl)
+                Toast.makeText(this, "YouTube video loaded", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("WhiteboardActivity", "Error adding YouTube container", e)
+            Toast.makeText(this, "Error adding YouTube video: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    fun addTextContainerWithContent(text: String, title: String = "") {
+        try {
+            // Create a new ContainerText
+            val containerText = com.infusory.tutarapp.ui.components.containers.ContainerText(this)
+
+            // Prepare the full text with title if provided
+            val fullText = if (title.isNotEmpty()) {
+                "$title\n\n$text"
+            } else {
+                text
+            }
+
+            // Set the text to the container
+            containerText.setText(fullText)
+
+            // Set layout params - adjust size based on content
+            val width = (300 * resources.displayMetrics.density).toInt()
+            val height = (400 * resources.displayMetrics.density).toInt()
+
+            val layoutParams = RelativeLayout.LayoutParams(width, height)
+            containerText.layoutParams = layoutParams
+
+            // Set elevation to ensure containers are above camera but below annotation
+            containerText.elevation = 50f
+
+            // Position the container with offset based on existing containers
+            val offsetX = containerManager.getContainerCount() * 60f + 100f
+            val offsetY = containerManager.getContainerCount() * 60f + 150f
+            containerText.moveContainerTo(offsetX, offsetY, animate = true)
+
+            // Set remove callback
+            containerText.onRemoveRequest = {
+                containerManager.removeContainer(containerText)
+            }
+
+            // Add to main layout
+            mainLayout.addView(containerText)
+
+            // Initialize content
+            containerText.initializeContent()
+
+            // Bring annotation tool to front
+            annotationTool?.bringToFront()
+
+            Toast.makeText(this, "Text added to canvas", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            android.util.Log.e("WhiteboardActivity", "Error adding text container", e)
+            Toast.makeText(this, "Error adding text: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
 }

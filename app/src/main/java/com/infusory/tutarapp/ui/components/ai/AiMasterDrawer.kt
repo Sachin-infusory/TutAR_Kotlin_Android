@@ -28,12 +28,15 @@ import org.json.JSONArray
 import java.io.IOException
 import android.util.Base64
 import android.graphics.BitmapFactory
+import com.bumptech.glide.Glide
+import com.infusory.tutarapp.ui.whiteboard.WhiteboardActivity
 
 class AiMasterDrawer(
-    private val context: Context,
+    private val activity: WhiteboardActivity,
     private val onResultReceived: (String) -> Unit
 ) {
 
+    private val context: Context get() = activity
     private var dialog: Dialog? = null
     private lateinit var dialogView: View
 
@@ -52,7 +55,11 @@ class AiMasterDrawer(
     private var selectedSubject: SubjectData? = null
     private var selectedOption: String = ""
 
-    private val options = arrayOf("lesson plan", "description")
+    private val options = arrayOf("Lesson Plan", "Description")
+
+    // properties to store the last search results
+    private var lastSearchData: JSONObject? = null
+    private var hasSearchResults: Boolean = false
 
     // Network
     private val client = OkHttpClient.Builder()
@@ -105,42 +112,6 @@ class AiMasterDrawer(
             Log.e("AiMasterDrawer", "Error loading class data: ${e.message}", e)
             classesData = emptyList()
         }
-    }
-
-    private fun createAndShowDialog() {
-        dialog = Dialog(context, R.style.CustomCenteredDialog)
-        dialog?.requestWindowFeature(Window.FEATURE_NO_TITLE)
-
-        val view = LayoutInflater.from(context).inflate(R.layout.dialog_ai_master, null)
-        dialogView = view
-
-        setupViews(view)
-        setupSpinners()
-
-        dialog?.setContentView(view)
-
-        dialog?.window?.let { window ->
-            window.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-
-            val displayMetrics = context.resources.displayMetrics
-            val configuration = context.resources.configuration
-            val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
-
-            val dialogWidth = (550 * displayMetrics.density).toInt()
-            val dialogHeight = (displayMetrics.heightPixels * 0.90).toInt()
-
-            val layoutParams = window.attributes
-            layoutParams.width = dialogWidth
-            layoutParams.height = dialogHeight
-            layoutParams.gravity = if (isLandscape) Gravity.CENTER else Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
-            layoutParams.dimAmount = 0.6f
-            window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
-            window.attributes = layoutParams
-        }
-
-        dialog?.setCancelable(true)
-        dialog?.setCanceledOnTouchOutside(true)
-        dialog?.show()
     }
 
     private fun setupViews(view: View) {
@@ -259,6 +230,9 @@ class AiMasterDrawer(
             val jsonResponse = JSONObject(responseBody)
             if (jsonResponse.optBoolean("status", false)) {
                 val data = jsonResponse.getJSONObject("data")
+                // Store the data before displaying
+                lastSearchData = data
+                hasSearchResults = true
                 displayResults(data)
                 resultsScrollView.visibility = View.VISIBLE
                 Toast.makeText(context, "Search completed successfully!", Toast.LENGTH_SHORT).show()
@@ -271,65 +245,434 @@ class AiMasterDrawer(
         }
     }
 
+    private fun createAndShowDialog() {
+        dialog = Dialog(context, R.style.CustomCenteredDialog)
+        dialog?.requestWindowFeature(Window.FEATURE_NO_TITLE)
+
+        val view = LayoutInflater.from(context).inflate(R.layout.dialog_ai_master, null)
+        dialogView = view
+
+        setupViews(view)
+        setupSpinners()
+
+        // Restore previous search results if they exist
+        if (hasSearchResults && lastSearchData != null) {
+            resultsScrollView.visibility = View.VISIBLE
+            displayResults(lastSearchData!!)
+        }
+
+        dialog?.setContentView(view)
+
+        dialog?.window?.let { window ->
+            window.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+
+            val displayMetrics = context.resources.displayMetrics
+            val configuration = context.resources.configuration
+            val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+
+            val dialogWidth = (550 * displayMetrics.density).toInt()
+            val dialogHeight = (displayMetrics.heightPixels * 0.90).toInt()
+
+            val layoutParams = window.attributes
+            layoutParams.width = dialogWidth
+            layoutParams.height = dialogHeight
+            layoutParams.gravity = if (isLandscape) Gravity.CENTER else Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+            layoutParams.dimAmount = 0.6f
+            window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+            window.attributes = layoutParams
+        }
+
+        dialog?.setCancelable(true)
+        dialog?.setCanceledOnTouchOutside(true)
+        dialog?.show()
+    }
+
     private fun displayResults(data: JSONObject) {
+        // Clear immediately
         resultsContainer.removeAllViews()
+        resultsScrollView.visibility = View.VISIBLE
 
-        if (data.has("content")) {
-            val content = data.getJSONObject("content")
-            if (content.has("lessonPlan")) {
-                val lessonPlan = content.getJSONObject("lessonPlan")
-                displayLessonPlan(lessonPlan)
-            }
+        Log.d("AiMasterDrawer", "Data keys: ${data.keys().asSequence().toList()}")
+
+        // Show loading indicator
+        val loadingView = TextView(context).apply {
+            text = "Loading content..."
+            textSize = 14f
+            setTextColor(Color.GRAY)
+            gravity = Gravity.CENTER
+            setPadding(dpToPx(20), dpToPx(40), dpToPx(20), dpToPx(40))
         }
+        resultsContainer.addView(loadingView)
 
-        if (data.has("names")) {
-            val names = data.getJSONArray("names")
-            if (names.length() > 0) {
-                display3DModels(names)
+        // Process views with delays to prevent frame drops
+        coroutineScope.launch {
+            delay(50) // Let the loading view render first
+
+            withContext(Dispatchers.Main) {
+                resultsContainer.removeView(loadingView)
             }
-        }
 
-        if (data.has("images")) {
-            val images = data.getJSONArray("images")
-            if (images.length() > 0) {
-                displayImages(images)
+            // Handle content first (lesson plan or description)
+            if (data.has("content")) {
+                val content = data.getJSONObject("content")
+
+                if (content.has("lessonPlan")) {
+                    withContext(Dispatchers.Main) {
+                        displayLessonPlan(content.getJSONObject("lessonPlan"))
+                    }
+                    delay(100) // Give UI time to render
+                }
+
+                if (content.has("description")) {
+                    val descriptionArray = content.getJSONArray("description")
+                    if (descriptionArray.length() > 0) {
+                        withContext(Dispatchers.Main) {
+                            displayDescription(descriptionArray)
+                        }
+                        delay(100)
+                    }
+                }
             }
-        }
 
-        if (data.has("videos")) {
-            val videos = data.getJSONArray("videos")
-            if (videos.length() > 0) {
-                displayVideos(videos)
+            // Media sections with progressive loading
+            if (data.has("names")) {
+                val names = data.getJSONArray("names")
+                if (names.length() > 0) {
+                    withContext(Dispatchers.Main) {
+                        display3DModels(names)
+                    }
+                    delay(100)
+                }
             }
-        }
 
-        if (data.has("mcqs")) {
-            val mcqs = data.getJSONArray("mcqs")
-            if (mcqs.length() > 0) {
-                displayMCQs(mcqs)
+            if (data.has("images")) {
+                val images = data.getJSONArray("images")
+                if (images.length() > 0) {
+                    withContext(Dispatchers.Main) {
+                        displayImages(images)
+                    }
+                    delay(100)
+                }
+            }
+
+            if (data.has("videos")) {
+                val videos = data.getJSONArray("videos")
+                if (videos.length() > 0) {
+                    withContext(Dispatchers.Main) {
+                        displayVideos(videos)
+                    }
+                }
             }
         }
     }
+
+    // ===== LESSON PLAN DISPLAY =====
 
     private fun displayLessonPlan(lessonPlan: JSONObject) {
-        val sectionTitle = createSectionTitle("Lesson Plan")
-        resultsContainer.addView(sectionTitle)
-        if (lessonPlan.has("topic")) resultsContainer.addView(createInfoCard("Topic", lessonPlan.getString("topic")))
-        if (lessonPlan.has("explanation")) resultsContainer.addView(createInfoCard("Explanation", lessonPlan.getString("explanation")))
-        if (lessonPlan.has("conclusion")) resultsContainer.addView(createInfoCard("Conclusion", lessonPlan.getString("conclusion")))
-        if (lessonPlan.has("notes")) resultsContainer.addView(createInfoCard("Notes", lessonPlan.getString("notes")))
-        addSpacer()
+        resultsContainer.addView(createLessonPlanContainer(lessonPlan))
     }
 
-    private fun displayMCQs(mcqs: JSONArray) {
-        val sectionTitle = createSectionTitle("Multiple Choice Questions")
-        resultsContainer.addView(sectionTitle)
-        for (i in 0 until mcqs.length()) {
-            val mcq = mcqs.getJSONObject(i)
-            resultsContainer.addView(createMCQCard(mcq, i + 1))
+    private fun createLessonPlanContainer(lessonPlan: JSONObject): LinearLayout {
+        return LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dpToPx(4), dpToPx(12), dpToPx(4), dpToPx(12))
+
+            layoutParams = createMarginLayoutParams(0, dpToPx(20), 0, dpToPx(8))
+            elevation = 3f
+            isClickable = true
+            setOnClickListener {
+                Log.d("AiMasterDrawer", "Lesson Plan clicked")
+                Toast.makeText(context, "Lesson Plan", Toast.LENGTH_SHORT).show()
+            }
+
+            // Add title
+            addView(createSectionHeader("Lesson Plan"))
+
+            // Add content sections
+            if (lessonPlan.has("topic")) {
+                addView(createLessonPlanCard("TOPIC", lessonPlan.getString("topic"), true))
+            }
+            if (lessonPlan.has("explanation")) {
+                addView(createLessonPlanCard("Explanation", lessonPlan.getString("explanation"), false))
+            }
+            if (lessonPlan.has("conclusion")) {
+                addView(createLessonPlanCard("Conclusion", lessonPlan.getString("conclusion"), false))
+            }
+            if (lessonPlan.has("notes")) {
+                addView(createLessonPlanCard("Notes", lessonPlan.getString("notes"), false))
+            }
         }
-        addSpacer()
     }
+
+//    private fun createLessonPlanCard(heading: String, content: String, isTopic: Boolean): LinearLayout {
+//        return LinearLayout(context).apply {
+//            orientation = LinearLayout.VERTICAL
+//            setPadding(dpToPx(16), dpToPx(14), dpToPx(16), dpToPx(14))
+//
+//            background = createGradientBackground()
+//            layoutParams = createMarginLayoutParams(dpToPx(12), dpToPx(6), dpToPx(12), dpToPx(6))
+//            elevation = 2f
+//            isClickable = true
+//            setOnClickListener {
+//                Log.d("AiMasterDrawer", "$heading clicked")
+//                Toast.makeText(context, heading, Toast.LENGTH_SHORT).show()
+//            }
+//
+//            // Heading
+//            addView(TextView(context).apply {
+//                text = heading
+//                textSize = if (isTopic) 14f else 16f
+//                setTypeface(null, android.graphics.Typeface.BOLD)
+//                setTextColor(Color.WHITE)
+//                letterSpacing = if (isTopic) 0.1f else 0.05f
+//                gravity = if (isTopic) Gravity.CENTER else Gravity.START
+//            })
+//
+//            // Content
+//            addView(TextView(context).apply {
+//                text = content
+//                textSize = if (isTopic) 18f else 15f
+//                setTextColor(Color.WHITE)
+//                setPadding(0, dpToPx(8), 0, 0)
+//                setTextIsSelectable(true)
+//                setLineSpacing(1.4f, 1.0f)
+//                gravity = if (isTopic) Gravity.CENTER else Gravity.START
+//            })
+//        }
+//    }
+
+    private fun addTextContainerToWhiteboard(text: String, title: String = "") {
+        try {
+            // Call the activity method to add text container
+            activity.addTextContainerWithContent(text, title)
+
+            // Dismiss the drawer after adding
+            dismiss()
+
+            Toast.makeText(context, "Text added to canvas", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            Log.e("AiMasterDrawer", "Error adding text container", e)
+            Toast.makeText(context, "Error adding text: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+private fun createLessonPlanCard(heading: String, content: String, isTopic: Boolean): LinearLayout {
+    return LinearLayout(context).apply {
+        orientation = LinearLayout.VERTICAL
+        setPadding(dpToPx(16), dpToPx(14), dpToPx(16), dpToPx(14))
+
+        background = createGradientBackground()
+        layoutParams = createMarginLayoutParams(dpToPx(12), dpToPx(6), dpToPx(12), dpToPx(6))
+        elevation = 2f
+        isClickable = true
+        setOnClickListener {
+            Log.d("AiMasterDrawer", "$heading clicked")
+            // Add text container instead of just showing toast
+            addTextContainerToWhiteboard(content, heading)
+        }
+
+        // Heading
+        addView(TextView(context).apply {
+            text = heading
+            textSize = if (isTopic) 14f else 16f
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            setTextColor(Color.WHITE)
+            letterSpacing = if (isTopic) 0.1f else 0.05f
+            gravity = if (isTopic) Gravity.CENTER else Gravity.START
+        })
+
+        // Content
+        addView(TextView(context).apply {
+            text = content
+            textSize = if (isTopic) 18f else 15f
+            setTextColor(Color.WHITE)
+            setPadding(0, dpToPx(8), 0, 0)
+            setTextIsSelectable(true)
+            setLineSpacing(1.4f, 1.0f)
+            gravity = if (isTopic) Gravity.CENTER else Gravity.START
+        })
+    }
+}
+    // ===== DESCRIPTION DISPLAY =====
+
+    private fun displayDescription(descriptionArray: JSONArray) {
+        resultsContainer.addView(createDescriptionContainer(descriptionArray))
+        resultsContainer.addView(createSpacer(5))
+    }
+
+    private fun createDescriptionContainer(descriptionArray: JSONArray): LinearLayout {
+        return LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dpToPx(4), dpToPx(12), dpToPx(4), dpToPx(12))
+            layoutParams = createMarginLayoutParams(0, dpToPx(20), 0, dpToPx(8))
+            elevation = 3f
+            isClickable = true
+            setOnClickListener {
+                Log.d("AiMasterDrawer", "Description clicked")
+                Toast.makeText(context, "Description", Toast.LENGTH_SHORT).show()
+            }
+
+            // Add title
+            addView(createSectionHeader("Description"))
+
+            // Add description points (limit to prevent performance issues)
+            val maxPoints = minOf(descriptionArray.length(), 15)
+            for (i in 0 until maxPoints) {
+                addView(createDescriptionPoint(descriptionArray.getString(i), i))
+            }
+
+            // Show "more" indicator if needed
+            if (descriptionArray.length() > maxPoints) {
+                addView(TextView(context).apply {
+                    text = "... ${descriptionArray.length() - maxPoints} more points"
+                    textSize = 12f
+                    setTextColor(Color.LTGRAY)
+                    setPadding(dpToPx(16), dpToPx(8), dpToPx(16), dpToPx(8))
+                    gravity = Gravity.CENTER
+                })
+            }
+        }
+    }
+
+//    private fun createDescriptionPoint(point: String, index: Int): LinearLayout {
+//        return LinearLayout(context).apply {
+//            orientation = LinearLayout.HORIZONTAL
+//            setPadding(dpToPx(12), dpToPx(10), dpToPx(12), dpToPx(10))
+//
+//            background = createDashedBorder()
+//            layoutParams = createMarginLayoutParams(dpToPx(12), dpToPx(4), dpToPx(12), dpToPx(4))
+//            isClickable = true
+//            setOnClickListener {
+//                Log.d("AiMasterDrawer", "Point ${index + 1} clicked")
+//                Toast.makeText(context, "Point ${index + 1}", Toast.LENGTH_SHORT).show()
+//            }
+//
+//            // Bullet
+//            addView(View(context).apply {
+//                background = createCircleBullet()
+//                layoutParams = LinearLayout.LayoutParams(dpToPx(8), dpToPx(8)).apply {
+//                    setMargins(dpToPx(4), dpToPx(8), dpToPx(12), 0)
+//                }
+//            })
+//
+//            // Text
+//            addView(TextView(context).apply {
+//                text = point
+//                textSize = 14f
+//                setTextColor(Color.WHITE)
+//                setLineSpacing(1.4f, 1.0f)
+//                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+//            })
+//        }
+//    }
+private fun createDescriptionPoint(point: String, index: Int): LinearLayout {
+    return LinearLayout(context).apply {
+        orientation = LinearLayout.HORIZONTAL
+        setPadding(dpToPx(12), dpToPx(10), dpToPx(12), dpToPx(10))
+
+        background = createDashedBorder()
+        layoutParams = createMarginLayoutParams(dpToPx(12), dpToPx(4), dpToPx(12), dpToPx(4))
+        isClickable = true
+        setOnClickListener {
+            Log.d("AiMasterDrawer", "Point ${index + 1} clicked")
+            // Add text container instead of just showing toast
+            addTextContainerToWhiteboard(point, "Point ${index + 1}")
+        }
+
+        // Bullet
+        addView(View(context).apply {
+            background = createCircleBullet()
+            layoutParams = LinearLayout.LayoutParams(dpToPx(8), dpToPx(8)).apply {
+                setMargins(dpToPx(4), dpToPx(8), dpToPx(12), 0)
+            }
+        })
+
+        // Text
+        addView(TextView(context).apply {
+            text = point
+            textSize = 14f
+            setTextColor(Color.WHITE)
+            setLineSpacing(1.4f, 1.0f)
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        })
+    }
+}
+    // ===== ADD THESE HELPER METHODS TO YOUR AiMasterDrawer CLASS =====
+
+// Add these methods right after the displayImages() method and before clearResults()
+
+    private fun createSectionHeader(title: String): TextView {
+        return TextView(context).apply {
+            text = title
+            textSize = 18f
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            setTextColor(Color.WHITE)
+            setPadding(dpToPx(16), dpToPx(8), dpToPx(16), dpToPx(12))
+        }
+    }
+
+    private fun createSpacer(heightDp: Int): View {
+        return View(context).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dpToPx(heightDp)
+            )
+        }
+    }
+
+    private fun createMarginLayoutParams(left: Int, top: Int, right: Int, bottom: Int): LinearLayout.LayoutParams {
+        return LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply {
+            setMargins(left, top, right, bottom)
+        }
+    }
+
+    private fun createRoundedBackground(colorHex: String, cornerRadius: Float): android.graphics.drawable.GradientDrawable {
+        return android.graphics.drawable.GradientDrawable().apply {
+            setColor(Color.parseColor(colorHex))
+            this.cornerRadius = cornerRadius
+        }
+    }
+
+    private fun createGradientBackground(): android.graphics.drawable.GradientDrawable {
+        return android.graphics.drawable.GradientDrawable(
+            android.graphics.drawable.GradientDrawable.Orientation.TL_BR,
+            intArrayOf(
+                Color.parseColor("#2C5F5D"),
+                Color.parseColor("#1E4645")
+            )
+        ).apply {
+            cornerRadius = dpToPx(8).toFloat()
+        }
+    }
+
+    private fun createDashedBorder(): android.graphics.drawable.GradientDrawable {
+        return android.graphics.drawable.GradientDrawable().apply {
+            setColor(Color.TRANSPARENT)
+            setStroke(dpToPx(1), Color.parseColor("#666666"), dpToPx(8).toFloat(), dpToPx(4).toFloat())
+            cornerRadius = dpToPx(8).toFloat()
+        }
+    }
+
+    private fun createCircleBullet(): android.graphics.drawable.GradientDrawable {
+        return android.graphics.drawable.GradientDrawable().apply {
+            shape = android.graphics.drawable.GradientDrawable.OVAL
+            setColor(Color.parseColor("#2196F3"))
+        }
+    }
+
+
+//    private fun displayMCQs(mcqs: JSONArray) {
+//        val sectionTitle = createSectionTitle("Multiple Choice Questions")
+//        resultsContainer.addView(sectionTitle)
+//        for (i in 0 until mcqs.length()) {
+//            val mcq = mcqs.getJSONObject(i)
+//            resultsContainer.addView(createMCQCard(mcq, i + 1))
+//        }
+//        addSpacer(5)
+//    }
 
     private fun displayVideos(videos: JSONArray) {
         val sectionTitle = createSectionTitle("Videos")
@@ -349,13 +692,14 @@ class AiMasterDrawer(
         for (i in 0 until videos.length()) {
             val video = videos.getJSONObject(i)
             val videoId = video.getString("videoId")
-            val thumbnail = video.getString("thumbnail")
+            val thumbnail = video.optString("thumbnail", "")
             val title = video.optString("title", "Video ${i + 1}")
+
             val videoCard = createVideoCard(videoId, thumbnail, title)
             horizontalContainer.addView(videoCard)
         }
 
-        addSpacer()
+        addSpacer(5)
     }
 
     private fun display3DModels(names: JSONArray) {
@@ -379,31 +723,25 @@ class AiMasterDrawer(
             horizontalContainer.addView(modelCard)
         }
 
-        addSpacer()
+        addSpacer(5)
     }
 
-    private fun displayImages(images: JSONArray) {
-        val sectionTitle = createSectionTitle("Images")
-        resultsContainer.addView(sectionTitle)
+    private fun addYouTubeContainerToWhiteboard(videoId: String) {
+        try {
+            // Create the YouTube URL
+            val youtubeUrl = "https://www.youtube.com/watch?v=$videoId"
 
-        val horizontalContainer = LinearLayout(context).apply {
-            orientation = LinearLayout.HORIZONTAL
-            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+            // Call the activity method to add YouTube container
+            activity.addYouTubeContainerWithUrl(youtubeUrl)
+
+            // Dismiss the drawer after adding
+            dismiss()
+
+            Toast.makeText(context, "YouTube video added to canvas", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            Log.e("AiMasterDrawer", "Error adding YouTube container", e)
+            Toast.makeText(context, "Error adding video: ${e.message}", Toast.LENGTH_SHORT).show()
         }
-
-        val scrollView = HorizontalScrollView(context).apply {
-            isHorizontalScrollBarEnabled = false
-            addView(horizontalContainer)
-        }
-        resultsContainer.addView(scrollView)
-
-        for (i in 0 until images.length()) {
-            val imageBase64 = images.getString(i)
-            val imageCard = createImageCard(imageBase64, i + 1)
-            horizontalContainer.addView(imageCard)
-        }
-
-        addSpacer()
     }
 
     private fun createVideoCard(videoId: String, thumbnail: String, title: String): LinearLayout {
@@ -416,32 +754,64 @@ class AiMasterDrawer(
             }
             isClickable = true
             elevation = 4f
-            setOnClickListener { openYouTubeVideo(videoId) }
+            // ✅ Change click listener to add YouTube container
+            setOnClickListener {
+                addYouTubeContainerToWhiteboard(videoId)
+            }
         }
 
-        val thumbnailView = ImageView(context).apply {
-            setImageURI(Uri.parse(thumbnail))
-            scaleType = ImageView.ScaleType.CENTER_CROP
+        // ✅ Create a FrameLayout to overlay the play icon on the thumbnail
+        val thumbnailContainer = FrameLayout(context).apply {
             layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dpToPx(80))
         }
 
-        val titleView = TextView(context).apply {
-            text = title
-            textSize = 12f
-            setTypeface(null, android.graphics.Typeface.BOLD)
-            setTextColor(Color.WHITE)
-            maxLines = 2
-            ellipsize = TextUtils.TruncateAt.END
-            gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(0, dpToPx(4), 0, 0)
-            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+        val thumbnailView = ImageView(context).apply {
+            scaleType = ImageView.ScaleType.CENTER_CROP
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            )
+
+            // Use Glide to load the image
+            if (thumbnail.isNotEmpty()) {
+                Glide.with(context)
+                    .load(thumbnail)
+                    .placeholder(R.drawable.section_icon_video)
+                    .error(R.drawable.section_icon_video)
+                    .into(this)
+            } else {
+                setImageResource(R.drawable.section_icon_video)
+            }
         }
 
-        cardLayout.addView(thumbnailView)
-        cardLayout.addView(titleView)
+        // ✅ Create the play icon overlay
+        val playIcon = ImageView(context).apply {
+            setImageResource(android.R.drawable.ic_media_play)
+            scaleType = ImageView.ScaleType.CENTER
+            layoutParams = FrameLayout.LayoutParams(
+                dpToPx(48),
+                dpToPx(48)
+            ).apply {
+                gravity = Gravity.CENTER
+            }
+
+            // Create rounded background programmatically
+            val drawable = android.graphics.drawable.GradientDrawable().apply {
+                shape = android.graphics.drawable.GradientDrawable.OVAL
+                setColor(Color.parseColor("#80000000")) // Semi-transparent black
+            }
+            background = drawable
+
+            setPadding(dpToPx(12), dpToPx(12), dpToPx(12), dpToPx(12))
+        }
+
+        // Add thumbnail and play icon to the container
+        thumbnailContainer.addView(thumbnailView)
+        thumbnailContainer.addView(playIcon)
+
+        cardLayout.addView(thumbnailContainer)
         return cardLayout
     }
-
     private fun create3DModelCard(name: String): LinearLayout {
         val cardLayout = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
@@ -474,45 +844,6 @@ class AiMasterDrawer(
         }
 
         cardLayout.addView(thumbnailView)
-        cardLayout.addView(titleView)
-        return cardLayout
-    }
-
-    private fun createImageCard(imageBase64: String, index: Int): LinearLayout {
-        val cardLayout = LinearLayout(context).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dpToPx(8), dpToPx(8), dpToPx(8), dpToPx(8))
-            setBackgroundResource(R.drawable.modern_video_card_background)
-            layoutParams = LinearLayout.LayoutParams(dpToPx(120), LinearLayout.LayoutParams.WRAP_CONTENT).apply {
-                setMargins(dpToPx(8), 0, dpToPx(8), 0)
-            }
-            isClickable = true
-            elevation = 4f
-//            setOnClickListener { showImageFullScreen(imageBase64) }
-        }
-
-        val imageView = ImageView(context).apply {
-            val decodedString = imageBase64.split(",")[1] // Remove data URI prefix if present
-            val decodedByte = Base64.decode(decodedString, Base64.DEFAULT)
-            val bitmap = BitmapFactory.decodeByteArray(decodedByte, 0, decodedByte.size)
-            setImageBitmap(bitmap)
-            scaleType = ImageView.ScaleType.CENTER_CROP
-            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dpToPx(80))
-        }
-
-        val titleView = TextView(context).apply {
-            text = "Image $index"
-            textSize = 12f
-            setTypeface(null, android.graphics.Typeface.BOLD)
-            setTextColor(Color.WHITE)
-            maxLines = 2
-            ellipsize = TextUtils.TruncateAt.END
-            gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(0, dpToPx(4), 0, 0)
-            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
-        }
-
-        cardLayout.addView(imageView)
         cardLayout.addView(titleView)
         return cardLayout
     }
@@ -690,36 +1021,13 @@ class AiMasterDrawer(
         return cardLayout
     }
 
-    private fun openYouTubeVideo(videoId: String) {
-        try {
-            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/watch?v=$videoId"))
-            context.startActivity(intent)
-        } catch (e: Exception) {
-            Toast.makeText(context, "Unable to open video: $videoId", Toast.LENGTH_SHORT).show()
-        }
-    }
-
     private fun open3DModel(name: String) {
         Toast.makeText(context, "Opening 3D Model: $name", Toast.LENGTH_SHORT).show() // Placeholder
     }
 
-//    private fun showImageFullScreen(imageBase64: String) {
-//        val dialog = Dialog(context)
-//        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
-//        dialog.setContentView(R.layout.dialog_fullscreen_image)
-//        val imageView = dialog.findViewById<ImageView>(R.id.iv_fullscreen_image)
-//        val decodedString = imageBase64.split(",")[1]
-//        val decodedByte = Base64.decode(decodedString, Base64.DEFAULT)
-//        val bitmap = BitmapFactory.decodeByteArray(decodedByte, 0, decodedByte.size)
-//        imageView.setImageBitmap(bitmap)
-//        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.BLACK))
-//        dialog.window?.setLayout(WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT)
-//        dialog.show()
-//    }
-
-    private fun addSpacer() {
+    private fun addSpacer(height: Int = 20) {
         val spacer = View(context).apply {
-            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dpToPx(20))
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dpToPx(height))
         }
         resultsContainer.addView(spacer)
     }
@@ -728,8 +1036,85 @@ class AiMasterDrawer(
         return (dp * context.resources.displayMetrics.density).toInt()
     }
 
+    private fun createImageCard(imageBase64: String, index: Int): LinearLayout {
+        val cardLayout = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dpToPx(8), dpToPx(8), dpToPx(8), dpToPx(8))
+            setBackgroundResource(R.drawable.modern_video_card_background)
+            layoutParams = LinearLayout.LayoutParams(dpToPx(120), dpToPx(120)).apply {
+                setMargins(dpToPx(8), 0, dpToPx(8), 0)
+            }
+            isClickable = true
+            elevation = 4f
+            setOnClickListener {
+                try {
+                    activity.addImageContainerFromBase64(imageBase64)
+                    dismiss() // Close the drawer after adding the image
+                } catch (e: Exception) {
+                    Log.e("AiMasterDrawer", "Error adding image", e)
+                    Toast.makeText(context, "Error adding image: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+
+        val imageView = ImageView(context).apply {
+            try {
+                val decodedString = if (imageBase64.contains(",")) {
+                    imageBase64.split(",")[1] // Remove data URI prefix if present
+                } else {
+                    imageBase64
+                }
+                val decodedByte = android.util.Base64.decode(decodedString, android.util.Base64.DEFAULT)
+                val bitmap = BitmapFactory.decodeByteArray(decodedByte, 0, decodedByte.size)
+                setImageBitmap(bitmap)
+                scaleType = ImageView.ScaleType.CENTER_CROP
+            } catch (e: Exception) {
+                Log.e("AiMasterDrawer", "Error decoding image", e)
+                setBackgroundColor(Color.LTGRAY)
+            }
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.MATCH_PARENT
+            )
+        }
+
+        cardLayout.addView(imageView)
+        return cardLayout
+    }
+
+    private fun displayImages(images: JSONArray) {
+        val sectionTitle = createSectionTitle("Images")
+        resultsContainer.addView(sectionTitle)
+
+        val horizontalContainer = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+        }
+
+        val scrollView = HorizontalScrollView(context).apply {
+            isHorizontalScrollBarEnabled = false
+            addView(horizontalContainer)
+        }
+        resultsContainer.addView(scrollView)
+
+        for (i in 0 until images.length()) {
+            val imageBase64 = images.getString(i)
+            val imageCard = createImageCard(imageBase64, i + 1) // No activity parameter
+            horizontalContainer.addView(imageCard)
+        }
+
+        addSpacer()
+    }
+
+    // if we need we can clear the data using this function
+    fun clearResults() {
+        lastSearchData = null
+        hasSearchResults = false
+    }
+
     fun dismiss() {
         dialog?.dismiss()
-        coroutineScope.cancel()
+        dialog = null
+        // Data is preserved! All your search results, selections, etc. remain intact
     }
 }
