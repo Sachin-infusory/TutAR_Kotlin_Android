@@ -15,7 +15,7 @@ import com.infusory.tutarapp.R
 
 class SettingsPopup(private val context: Context) {
 
-    private var dialog: Dialog? = null
+    internal var dialog: Dialog? = null
     private val prefs = context.getSharedPreferences("whiteboard_settings", Context.MODE_PRIVATE)
 
     // Settings values - loaded from SharedPreferences
@@ -68,6 +68,7 @@ class SettingsPopup(private val context: Context) {
             window?.attributes?.gravity = Gravity.CENTER
             window?.setDimAmount(0.6f)
 
+            applySavedSettings() // Restore settings
             show()
         }
     }
@@ -614,22 +615,39 @@ class SettingsPopup(private val context: Context) {
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
-            )
+            ).apply {
+                gravity = Gravity.END or Gravity.CENTER_VERTICAL
+            }
 
+            // Create radio buttons
             val smallRadio = createRadioButton("Small", buttonSize == ButtonSize.SMALL)
             val mediumRadio = createRadioButton("Medium", buttonSize == ButtonSize.MEDIUM)
             val largeRadio = createRadioButton("Large", buttonSize == ButtonSize.LARGE)
 
+            // Assign unique IDs to radio buttons
+            smallRadio.id = View.generateViewId()
+            mediumRadio.id = View.generateViewId()
+            largeRadio.id = View.generateViewId()
+
+            // Add radio buttons to the group
             addView(smallRadio)
             addView(mediumRadio)
             addView(largeRadio)
 
+            // Set the initial checked state
+            check(when (buttonSize) {
+                ButtonSize.SMALL -> smallRadio.id
+                ButtonSize.MEDIUM -> mediumRadio.id
+                ButtonSize.LARGE -> largeRadio.id
+            })
+
+            // Handle selection changes
             setOnCheckedChangeListener { _, checkedId ->
                 buttonSize = when (checkedId) {
                     smallRadio.id -> ButtonSize.SMALL
                     mediumRadio.id -> ButtonSize.MEDIUM
                     largeRadio.id -> ButtonSize.LARGE
-                    else -> ButtonSize.SMALL
+                    else -> ButtonSize.SMALL // Fallback
                 }
                 handleButtonSizeSetting(buttonSize)
             }
@@ -643,7 +661,7 @@ class SettingsPopup(private val context: Context) {
             text = label
             textSize = 13f
             setTextColor(Color.parseColor("#333333"))
-            this.isChecked = isChecked
+            this.isChecked = isChecked // This will be overridden by RadioGroup.check()
             layoutParams = RadioGroup.LayoutParams(
                 RadioGroup.LayoutParams.WRAP_CONTENT,
                 RadioGroup.LayoutParams.WRAP_CONTENT
@@ -660,16 +678,26 @@ class SettingsPopup(private val context: Context) {
 
         prefs.edit().putBoolean("show_clock", enabled).apply()
 
-        // TODO: Implement actual clock widget show/hide
+        if (context is AppCompatActivity) {
+            val aiButton = context.findViewById<View>(R.id.status_bar)
+            if (enabled) {
+                aiButton?.visibility = View.VISIBLE
+            } else {
+                aiButton?.visibility = View.GONE
+            }
+        }
     }
 
     private fun handleAiAssistantSetting(enabled: Boolean) {
-        val message = if (enabled) "AI Assistant enabled" else "AI Assistant disabled"
-        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
-
         prefs.edit().putBoolean("ai_assistant_enabled", enabled).apply()
-
-        // TODO: Implement actual AI assistant enable/disable
+        if (context is AppCompatActivity) {
+            val aiButton = context.findViewById<View>(R.id.ai_master_btn)
+            if (enabled) {
+                aiButton?.visibility = View.VISIBLE
+            } else {
+                aiButton?.visibility = View.GONE
+            }
+        }
     }
 
     private fun handleToolbarPositionSetting(position: ToolbarPosition) {
@@ -705,9 +733,9 @@ class SettingsPopup(private val context: Context) {
             val rightToolbar = context.findViewById<View>(R.id.right_toolbar)
 
             val buttonSize = when (size) {
-                ButtonSize.SMALL -> 40
-                ButtonSize.MEDIUM -> 56
-                ButtonSize.LARGE -> 72
+                ButtonSize.SMALL -> 30
+                ButtonSize.MEDIUM -> 40
+                ButtonSize.LARGE -> 56
             }
 
             updateToolbarButtonSizes(leftToolbar, buttonSize)
@@ -738,11 +766,12 @@ class SettingsPopup(private val context: Context) {
         toolbar.requestLayout()
     }
 
-    // Load and apply saved settings when needed
     fun applySavedSettings() {
         if (context is AppCompatActivity) {
             handleToolbarPositionSetting(toolbarPosition)
             handleButtonSizeSetting(buttonSize)
+            handleAiAssistantSetting(aiAssistantEnabled)
+            handleShowClockSetting(showClock)
         }
     }
 
