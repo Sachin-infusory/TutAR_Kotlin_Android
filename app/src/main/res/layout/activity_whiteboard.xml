@@ -10,7 +10,6 @@
     android:clipToPadding="false"
     tools:context=".ui.whiteboard.WhiteboardActivity">
 
-
     <SurfaceView
         android:id="@+id/surface_view"
         android:layout_width="match_parent"
@@ -83,8 +82,32 @@
         android:layout_alignParentEnd="true"
         android:layout_alignParentBottom="true"
         android:layout_marginEnd="16dp"
-        android:layout_marginBottom="7dp"
+        android:layout_marginBottom="27dp"
         android:clickable="true"
-        tools:srcCompat="@tools:sample/avatars" />
+        app:srcCompat="@android:drawable/ic_menu_help" />
+
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/btn_circle_search"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentEnd="true"
+        android:layout_alignParentBottom="true"
+        android:layout_marginEnd="88dp"
+        android:layout_marginBottom="27dp"
+        android:clickable="true"
+        android:contentDescription="Circle to Search"
+        app:srcCompat="@android:drawable/ic_menu_search" />
+
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/btn_analyze_screen"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentEnd="true"
+        android:layout_alignParentBottom="true"
+        android:layout_marginEnd="160dp"
+        android:layout_marginBottom="27dp"
+        android:clickable="true"
+        android:contentDescription="Analyze screen"
+        app:srcCompat="@android:drawable/ic_menu_search" />
 
 </RelativeLayout>

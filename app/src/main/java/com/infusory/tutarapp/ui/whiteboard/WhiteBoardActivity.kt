@@ -1,14 +1,18 @@
 package com.infusory.tutarapp.ui.whiteboard
 
 import android.Manifest
+import android.content.ContentValues
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.os.Build
 import android.os.Bundle
+import android.provider.MediaStore
+import android.util.Log
 import android.view.SurfaceView
 import android.view.View
 import android.view.WindowManager
 import android.widget.ImageButton
-import android.widget.RelativeLayout
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.view.PreviewView
@@ -25,6 +29,16 @@ import com.infusory.tutarapp.managers.WhiteboardButtonStateManager
 import com.infusory.tutarapp.managers.CameraManager
 import com.infusory.tutarapp.managers.WhiteboardStateManager
 import com.infusory.tutarapp.ui.components.containers.Container3D
+import com.infusory.tutarapp.ui.dialogs.SettingsPopup
+import android.app.Dialog
+import android.view.ViewGroup
+import android.widget.RelativeLayout
+import com.infusory.tutarapp.ui.ai.DrawView
+import com.infusory.tutarapp.ui.ai.ScreenAnalyzerView
+import java.io.IOException
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 enum class ActionType {
     SAVE, INSERT
@@ -45,6 +59,8 @@ class WhiteboardActivity : AppCompatActivity() {
     private lateinit var popupHandler: PopupHandler
     private lateinit var imagePickerHandler: ImagePickerHandler
 
+    private var settingsPopup: SettingsPopup? = null
+
     // Drawers
     private var modelBrowserDrawer: ModelBrowserDrawer? = null
     private var aiMasterDrawer: AiMasterDrawer? = null
@@ -55,6 +71,10 @@ class WhiteboardActivity : AppCompatActivity() {
     // Track button references for auto-deactivation
     private val buttonReferences = mutableMapOf<String, MutableList<ImageButton>>()
 
+    companion object {
+        const val STORAGE_PERMISSION_REQUEST_CODE = 1001
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         makeFullscreen()
@@ -64,8 +84,7 @@ class WhiteboardActivity : AppCompatActivity() {
         initManagers()
         initHandlers()
         setupUI()
-
-        Toast.makeText(this, "Welcome to TutAR Whiteboard with 3D!", Toast.LENGTH_LONG).show()
+        SettingsPopup(this).applySavedSettings()
     }
 
     private fun makeFullscreen() {
@@ -114,7 +133,6 @@ class WhiteboardActivity : AppCompatActivity() {
             val message = if (isEnabled) "Annotation mode enabled" else "Annotation mode disabled"
             Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
 
-            // Auto-deactivate draw button when annotation is manually disabled
             if (!isEnabled) {
                 buttonReferences["draw"]?.forEach { button ->
                     buttonStateManager.deactivateButtons(button)
@@ -134,10 +152,9 @@ class WhiteboardActivity : AppCompatActivity() {
                 RelativeLayout.LayoutParams.MATCH_PARENT,
                 RelativeLayout.LayoutParams.MATCH_PARENT
             )
-            elevation = 0f  // Lowest elevation - acts as background
+            elevation = 0f
             visibility = View.GONE
         }
-        // Add camera preview at index 0 (bottom layer)
         mainLayout.addView(cameraPreviewView, 0)
 
         cameraManager = CameraManager(this, this, cameraPreviewView, surfaceView)
@@ -161,7 +178,6 @@ class WhiteboardActivity : AppCompatActivity() {
             createCustom3DContainer(modelData, fullPath)
         }
 
-        // Listen for drawer dismissal
         modelBrowserDrawer?.setOnDismissListener {
             deactivateButtonsByKey("menu")
         }
@@ -177,38 +193,39 @@ class WhiteboardActivity : AppCompatActivity() {
         val leftToolbar = findViewById<View>(R.id.left_toolbar)
         val rightToolbar = findViewById<View>(R.id.right_toolbar)
 
-        // Register button pairs first (so they sync across toolbars)
         registerButtonPairs(leftToolbar, rightToolbar)
-
-        // Setup buttons on both toolbars
         setupToolbarButtons(leftToolbar)
         setupToolbarButtons(rightToolbar)
 
-        // AI Master button (standalone, not in toolbar)
         val aiMasterBtn = findViewById<ImageButton>(R.id.ai_master_btn)
-        registerButton("ai_master", aiMasterBtn)
-        buttonStateManager.setupButton(aiMasterBtn) {
-            showAiMaster()
+        if (aiMasterBtn != null) {
+            registerButton("ai_master", aiMasterBtn)
+            buttonStateManager.setupButton(aiMasterBtn) {
+                showAiMaster()
+            }
+        } else {
+            Log.w("WhiteboardActivity", "AI Master button not found")
         }
-    }
 
-    private fun deactivateButtonsByKey(key: String) {
-        // Close functionality based on key
-        when (key) {
-            "menu" -> {
-                modelBrowserDrawer?.dismiss()
+        val circleSearchBtn = findViewById<ImageButton>(R.id.btn_circle_search)
+        if (circleSearchBtn != null) {
+            registerButton("circle_search", circleSearchBtn)
+            buttonStateManager.setupButton(circleSearchBtn) {
+                startCircleToSearch()
+            }
+        } else {
+            Log.w("WhiteboardActivity", "Circle to Search button not found")
+        }
+
+        val btnAnalyzeScreen = findViewById<ImageButton>(R.id.btn_analyze_screen)
+        if (btnAnalyzeScreen != null) {
+            registerButton("analyze_screen", btnAnalyzeScreen)
+            buttonStateManager.setupButton(btnAnalyzeScreen) {
+                startScreenAnalysis()
             }
         }
-
-        // Deactivate buttons
-        buttonReferences[key]?.forEach { button ->
-            buttonStateManager.deactivateButtons(button)
-        }
     }
 
-    /**
-     * Register a button with a key for tracking
-     */
     private fun registerButton(key: String, button: ImageButton) {
         if (!buttonReferences.containsKey(key)) {
             buttonReferences[key] = mutableListOf()
@@ -216,8 +233,25 @@ class WhiteboardActivity : AppCompatActivity() {
         buttonReferences[key]?.add(button)
     }
 
+    private fun deactivateButtonsByKey(key: String) {
+        when (key) {
+            "menu" -> {
+                modelBrowserDrawer?.dismiss()
+            }
+            "circle_search" -> {
+                // No specific cleanup needed for now
+            }
+            "analyze_screen" -> {
+                // No specific cleanup needed
+            }
+        }
+
+        buttonReferences[key]?.forEach { button ->
+            buttonStateManager.deactivateButtons(button)
+        }
+    }
+
     private fun registerButtonPairs(leftToolbar: View, rightToolbar: View) {
-        // Register all paired buttons
         val pairedButtonIds = listOf(
             R.id.btn_draw,
             R.id.btn_ar,
@@ -232,153 +266,404 @@ class WhiteboardActivity : AppCompatActivity() {
 
             if (leftButton != null && rightButton != null) {
                 buttonStateManager.registerButtonPair(leftButton, rightButton)
+            } else {
+                Log.w("WhiteboardActivity", "Button pair not found for ID: $buttonId")
             }
         }
     }
 
     private fun setupToolbarButtons(toolbar: View) {
-        // Draw button
         val btnDraw = toolbar.findViewById<ImageButton>(R.id.btn_draw)
-        registerButton("draw", btnDraw)
-        buttonStateManager.setupButton(btnDraw) { isActive ->
-            if (isActive) {
-                annotationTool?.toggleAnnotationMode(true)
-            } else {
-                // Ensure annotation mode is turned off when button deactivates
-                if (annotationTool?.isInAnnotationMode() == true) {
-                    annotationTool?.toggleAnnotationMode(false)
+        if (btnDraw != null) {
+            registerButton("draw", btnDraw)
+            buttonStateManager.setupButton(btnDraw) { isActive ->
+                if (isActive) {
+                    annotationTool?.toggleAnnotationMode(true)
+                } else {
+                    if (annotationTool?.isInAnnotationMode() == true) {
+                        annotationTool?.toggleAnnotationMode(false)
+                    }
                 }
             }
         }
 
-        // AR button
         val btnAr = toolbar.findViewById<ImageButton>(R.id.btn_ar)
-        registerButton("ar", btnAr)
-        buttonStateManager.setupButton(btnAr) { isActive ->
-            if (isActive) {
-                toggleCameraWithPermission()
-            } else {
-                if (cameraManager.isCameraActive()) {
-                    cameraManager.stopCamera()
+        if (btnAr != null) {
+            registerButton("ar", btnAr)
+            buttonStateManager.setupButton(btnAr) { isActive ->
+                if (isActive) {
+                    toggleCameraWithPermission()
+                } else {
+                    if (cameraManager.isCameraActive()) {
+                        cameraManager.stopCamera()
+                    }
                 }
             }
         }
 
-        // Color picker button
         val colorPlate = toolbar.findViewById<ImageButton>(R.id.color_plate)
-        registerButton("color", colorPlate)
-        buttonStateManager.setupButton(colorPlate) { isActive ->
-            if (isActive) {
-                popupHandler.showColorPopup(
-                    colorPlate,
-                    surfaceView,
-                    onImagePickRequested = { imagePickerHandler.pickBackgroundImage() },
-                    onDismiss = {
-                        // Auto-deactivate when popup closes
-                        deactivateButtonsByKey("color")
-                    }
-                )
+        if (colorPlate != null) {
+            registerButton("color", colorPlate)
+            buttonStateManager.setupButton(colorPlate) { isActive ->
+                if (isActive) {
+                    popupHandler.showColorPopup(
+                        colorPlate,
+                        surfaceView,
+                        onImagePickRequested = { imagePickerHandler.pickBackgroundImage() },
+                        onDismiss = {
+                            deactivateButtonsByKey("color")
+                        }
+                    )
+                }
             }
         }
 
-        // Load lesson button
         val btnLoadLesson = toolbar.findViewById<ImageButton>(R.id.btn_load_lesson)
-        registerButton("lesson", btnLoadLesson)
-        buttonStateManager.setupButton(btnLoadLesson) { isActive ->
-            if (isActive) {
-                // TODO: Implement load lesson functionality
-                // After functionality completes, call: deactivateButtonsByKey("lesson")
+        if (btnLoadLesson != null) {
+            registerButton("lesson", btnLoadLesson)
+            buttonStateManager.setupButton(btnLoadLesson) { isActive ->
+                if (isActive) {
+                    // TODO: Implement load lesson functionality
+                    // After functionality completes, call: deactivateButtonsByKey("lesson")
+                }
             }
         }
 
-        // Menu (3D models) button
         val btnMenu = toolbar.findViewById<ImageButton>(R.id.btn_menu)
-        registerButton("menu", btnMenu)
-        buttonStateManager.setupButton(btnMenu) { isActive ->
-            if (isActive) {
-                showModelBrowser()
-                annotationTool?.toggleAnnotationMode(false)
-            } else {
-                modelBrowserDrawer?.dismiss()
+        if (btnMenu != null) {
+            registerButton("menu", btnMenu)
+            buttonStateManager.setupButton(btnMenu) { isActive ->
+                if (isActive) {
+                    showModelBrowser()
+                    annotationTool?.toggleAnnotationMode(false)
+                } else {
+                    modelBrowserDrawer?.dismiss()
+                }
             }
         }
 
-        // Save button
         val btnSave = toolbar.findViewById<ImageButton>(R.id.btn_save)
-        registerButton("save", btnSave)
-        buttonStateManager.setupButton(btnSave) { isActive ->
-            if (isActive) {
-                popupHandler.showActionOptionsPopup(
-                    btnSave,
-                    ActionType.SAVE,
-                    onSaveLesson = {
-                        // TODO: Implement save
-                        deactivateButtonsByKey("save")
-                    },
-                    onSavePdf = {
-                        // TODO: Implement save PDF
-                        deactivateButtonsByKey("save")
-                    },
-                    onDismiss = {
-                        // Auto-deactivate when popup closes
-                        deactivateButtonsByKey("save")
-                    }
-                )
+        if (btnSave != null) {
+            registerButton("save", btnSave)
+            buttonStateManager.setupButton(btnSave) { isActive ->
+                if (isActive) {
+                    popupHandler.showActionOptionsPopup(
+                        btnSave,
+                        ActionType.SAVE,
+                        onSaveLesson = {
+                            // TODO: Implement save
+                            deactivateButtonsByKey("save")
+                        },
+                        onSavePdf = {
+                            // TODO: Implement save PDF
+                            deactivateButtonsByKey("save")
+                        },
+                        onDismiss = {
+                            deactivateButtonsByKey("save")
+                        }
+                    )
+                }
             }
         }
 
-        // Insert button
         val btnInsert = toolbar.findViewById<ImageButton>(R.id.btn_insert)
-        registerButton("insert", btnInsert)
-        buttonStateManager.setupButton(btnInsert) { isActive ->
-            if (isActive) {
-                popupHandler.showActionOptionsPopup(
-                    btnInsert,
-                    ActionType.INSERT,
-                    onInsertImage = {
-                        imagePickerHandler.pickContainerImage()
-                        deactivateButtonsByKey("insert")
-                    },
-                    onInsertPdf = {
-                        imagePickerHandler.pickContainerPdf()
-                        deactivateButtonsByKey("insert")
-                    },
-                    onInsertYoutube = {
-                        containerManager.addYouTubeContainer()
-                        deactivateButtonsByKey("insert")
-                    },
-                    onInsertWebsite = {
-                        containerManager.addWebsiteContainer()
-                        deactivateButtonsByKey("insert")
-                    },
-                    onDismiss = {
-                        // Auto-deactivate when popup closes without action
-                        deactivateButtonsByKey("insert")
-                    }
-                )
+        if (btnInsert != null) {
+            registerButton("insert", btnInsert)
+            buttonStateManager.setupButton(btnInsert) { isActive ->
+                if (isActive) {
+                    popupHandler.showActionOptionsPopup(
+                        btnInsert,
+                        ActionType.INSERT,
+                        onInsertImage = {
+                            imagePickerHandler.pickContainerImage()
+                            deactivateButtonsByKey("insert")
+                        },
+                        onInsertPdf = {
+                            imagePickerHandler.pickContainerPdf()
+                            deactivateButtonsByKey("insert")
+                        },
+                        onInsertYoutube = {
+                            containerManager.addYouTubeContainer()
+                            deactivateButtonsByKey("insert")
+                        },
+                        onInsertWebsite = {
+                            containerManager.addWebsiteContainer()
+                            deactivateButtonsByKey("insert")
+                        },
+                        onDismiss = {
+                            deactivateButtonsByKey("insert")
+                        }
+                    )
+                }
             }
         }
 
-        // Settings button
         val btnSetting = toolbar.findViewById<ImageButton>(R.id.btn_setting)
-        registerButton("setting", btnSetting)
-        buttonStateManager.setupButton(btnSetting) { isActive ->
-            if (isActive) {
-                popupHandler.showContainerManagementMenu(
-                    containerManager,
-                    onCameraToggle = { toggleCameraWithPermission() },
-                    onPauseAll3D = { pauseAll3DRenderingForDrawing() },
-                    onResumeAll3D = { resumeAll3DRenderingAfterDrawing() },
-                    isCameraActive = cameraManager.isCameraActive(),
-                    onDismiss = {
-                        // Auto-deactivate when menu closes
-                        deactivateButtonsByKey("setting")
-                    }
-                )
+        if (btnSetting != null) {
+            registerButton("setting", btnSetting)
+            buttonStateManager.setupButton(btnSetting) { isActive ->
+                if (isActive) {
+                    showSettingsPopup()
+                } else {
+                    settingsPopup?.dismiss()
+                }
             }
         }
     }
 
+    private fun showSettingsPopup() {
+        settingsPopup = SettingsPopup(this)
+        settingsPopup?.show()
+        settingsPopup?.dialog?.setOnDismissListener {
+            deactivateButtonsByKey("setting")
+        }
+    }
+
+    private fun startScreenAnalysis() {
+        android.util.Log.d("WhiteboardActivity", "Starting Screen Analysis")
+
+        // Pause 3D rendering for better capture
+        pauseAll3DRenderingForDrawing()
+
+        // Force layout update
+        mainLayout.requestLayout()
+        mainLayout.invalidate()
+
+        // Small delay to ensure everything is rendered
+        mainLayout.postDelayed({
+            val dialog = Dialog(this, android.R.style.Theme_Translucent_NoTitleBar_Fullscreen)
+
+            val analyzerView = ScreenAnalyzerView(this, mainLayout) { bitmap ->
+                android.util.Log.d("WhiteboardActivity", "ScreenAnalyzerView callback received")
+
+                dialog.dismiss()
+                resumeAll3DRenderingAfterDrawing()
+                deactivateButtonsByKey("analyze_screen")
+
+                if (bitmap != null) {
+                    android.util.Log.d(
+                        "WhiteboardActivity",
+                        "Full screen bitmap captured: ${bitmap.width}x${bitmap.height}"
+                    )
+                    performFullScreenAnalysis(bitmap)
+                } else {
+                    android.util.Log.e("WhiteboardActivity", "Bitmap is null")
+                    Toast.makeText(
+                        this,
+                        "Failed to capture screenshot",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
+
+            // Set layout params to match parent
+            val layoutParams = ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+            analyzerView.layoutParams = layoutParams
+
+            dialog.setContentView(analyzerView)
+
+            // Configure window to fill entire screen including system bars
+            dialog.window?.apply {
+                setLayout(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
+                )
+                setBackgroundDrawableResource(android.R.color.transparent)
+
+                // Make it truly fullscreen - draw over system bars
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    // Android 11+
+                    setDecorFitsSystemWindows(false)
+                    insetsController?.apply {
+                        hide(android.view.WindowInsets.Type.systemBars())
+                        systemBarsBehavior = android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                    }
+                } else {
+                    // Android 10 and below
+                    @Suppress("DEPRECATION")
+                    decorView.systemUiVisibility = (
+                            View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                                    or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                                    or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                                    or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                                    or View.SYSTEM_UI_FLAG_FULLSCREEN
+                                    or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                            )
+                }
+            }
+
+            dialog.setOnCancelListener {
+                android.util.Log.d("WhiteboardActivity", "Screen Analysis cancelled")
+                analyzerView.reset()
+                resumeAll3DRenderingAfterDrawing()
+                deactivateButtonsByKey("analyze_screen")
+            }
+
+            dialog.show()
+
+            // Start the animation immediately after showing the dialog
+            analyzerView.startAnalysis()
+        }, 150) // Give time for layout to settle
+    }
+
+    private fun performFullScreenAnalysis(bitmap: Bitmap) {
+        // Log bitmap details for debugging
+        Log.d("WhiteboardActivity", "Captured full screen: width=${bitmap.width}, height=${bitmap.height}, config=${bitmap.config}")
+
+        // Save the bitmap to the gallery
+        saveBitmapToGallery(bitmap, "ScreenAnalysis")
+
+        // TODO: Implement API call to analyze the full screen bitmap
+        Toast.makeText(this, "Full screen captured and saved. Ready for AI analysis.", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun startCircleToSearch() {
+        android.util.Log.d("WhiteboardActivity", "Starting Circle to Search")
+
+        // Pause 3D rendering for better capture
+        pauseAll3DRenderingForDrawing()
+
+        // Force layout update
+        mainLayout.requestLayout()
+        mainLayout.invalidate()
+
+        // Small delay to ensure everything is rendered
+        mainLayout.postDelayed({
+            val dialog = Dialog(this, android.R.style.Theme_Translucent_NoTitleBar_Fullscreen)
+
+            val drawView = DrawView(this, mainLayout) { bitmap ->
+                android.util.Log.d("WhiteboardActivity", "DrawView callback received")
+
+                dialog.dismiss()
+                resumeAll3DRenderingAfterDrawing()
+                deactivateButtonsByKey("circle_search")
+
+                if (bitmap != null) {
+                    android.util.Log.d(
+                        "WhiteboardActivity",
+                        "Bitmap captured: ${bitmap.width}x${bitmap.height}"
+                    )
+                    performSearch(bitmap)
+                } else {
+                    android.util.Log.e("WhiteboardActivity", "Bitmap is null")
+                    Toast.makeText(
+                        this,
+                        "Failed to capture screenshot",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
+
+            // Set layout params to match parent
+            val layoutParams = ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+            drawView.layoutParams = layoutParams
+
+            dialog.setContentView(drawView)
+
+            // Configure window to fill entire screen including system bars
+            dialog.window?.apply {
+                setLayout(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
+                )
+                setBackgroundDrawableResource(android.R.color.transparent)
+
+                // Make it truly fullscreen - draw over system bars
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    // Android 11+
+                    setDecorFitsSystemWindows(false)
+                    insetsController?.apply {
+                        hide(android.view.WindowInsets.Type.systemBars())
+                        systemBarsBehavior = android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                    }
+                } else {
+                    // Android 10 and below
+                    @Suppress("DEPRECATION")
+                    decorView.systemUiVisibility = (
+                            View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                                    or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                                    or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                                    or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                                    or View.SYSTEM_UI_FLAG_FULLSCREEN
+                                    or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                            )
+                }
+            }
+
+            dialog.setOnCancelListener {
+                android.util.Log.d("WhiteboardActivity", "Circle to Search cancelled")
+                drawView.reset()
+                resumeAll3DRenderingAfterDrawing()
+                deactivateButtonsByKey("circle_search")
+            }
+
+            dialog.show()
+        }, 150) // Give time for layout to settle
+    }
+
+    private fun performSearch(bitmap: Bitmap) {
+        // Log bitmap details for debugging
+        Log.d("WhiteboardActivity", "Captured bitmap: width=${bitmap.width}, height=${bitmap.height}, config=${bitmap.config}")
+        // Save the bitmap to the gallery
+        saveBitmapToGallery(bitmap)
+        // TODO: Implement API call to process the selected bitmap
+        Toast.makeText(this, "Full screenshot saved. Ready for analysis.", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun saveBitmapToGallery(bitmap: Bitmap, prefix: String = "Screenshot") {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            if (ActivityCompat.checkSelfPermission(
+                    this,
+                    Manifest.permission.WRITE_EXTERNAL_STORAGE
+                ) != PackageManager.PERMISSION_GRANTED
+            ) {
+                ActivityCompat.requestPermissions(
+                    this,
+                    arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE),
+                    STORAGE_PERMISSION_REQUEST_CODE
+                )
+                return
+            }
+        }
+
+        val contentValues = ContentValues().apply {
+            put(MediaStore.Images.Media.DISPLAY_NAME, "${prefix}_${SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())}.png")
+            put(MediaStore.Images.Media.MIME_TYPE, "image/png")
+            put(MediaStore.Images.Media.DATE_ADDED, System.currentTimeMillis() / 1000)
+            put(MediaStore.Images.Media.DATE_TAKEN, System.currentTimeMillis())
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/TutarApp")
+                put(MediaStore.Images.Media.IS_PENDING, 1)
+            }
+        }
+
+        val resolver = contentResolver
+        val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
+        if (uri != null) {
+            try {
+                resolver.openOutputStream(uri)?.use { outputStream ->
+                    bitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream)
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    contentValues.clear()
+                    contentValues.put(MediaStore.Images.Media.IS_PENDING, 0)
+                    resolver.update(uri, contentValues, null, null)
+                }
+                Toast.makeText(this, "Image saved to gallery", Toast.LENGTH_SHORT).show()
+            } catch (e: IOException) {
+                Log.e("WhiteboardActivity", "Error saving image", e)
+                Toast.makeText(this, "Error saving image: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            Toast.makeText(this, "Failed to create image file", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     private fun toggleCameraWithPermission() {
         if (cameraManager.checkCameraPermission()) {
@@ -415,6 +700,13 @@ class WhiteboardActivity : AppCompatActivity() {
                     ).show()
                 }
             }
+            STORAGE_PERMISSION_REQUEST_CODE -> {
+                if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    Toast.makeText(this, "Storage permission granted. Try saving again.", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(this, "Storage permission denied. Cannot save image.", Toast.LENGTH_LONG).show()
+                }
+            }
         }
     }
 
@@ -428,7 +720,6 @@ class WhiteboardActivity : AppCompatActivity() {
 
     private fun handleAiMasterResponse(response: String) {
         android.util.Log.d("AiMasterResponse", response)
-
         try {
             if (response.isNotEmpty()) {
                 android.app.AlertDialog.Builder(this)
@@ -447,11 +738,7 @@ class WhiteboardActivity : AppCompatActivity() {
             }
         } catch (e: Exception) {
             android.util.Log.e("WhiteboardActivity", "Error handling AI response", e)
-            Toast.makeText(
-                this,
-                "Error processing AI response: ${e.message}",
-                Toast.LENGTH_LONG
-            ).show()
+            Toast.makeText(this, "Error processing AI response: ${e.message}", Toast.LENGTH_LONG).show()
         }
     }
 
@@ -464,7 +751,6 @@ class WhiteboardActivity : AppCompatActivity() {
             setTextIsSelectable(true)
         }
         scrollView.addView(textView)
-
         android.app.AlertDialog.Builder(this)
             .setTitle("Raw API Response")
             .setView(scrollView)
@@ -480,33 +766,25 @@ class WhiteboardActivity : AppCompatActivity() {
 
         val container3D = Container3D(this)
         container3D.setModelData(modelData, fullPath)
-
         val layoutParams = RelativeLayout.LayoutParams(
             container3D.getDefaultWidth(),
             container3D.getDefaultHeight()
         )
         container3D.layoutParams = layoutParams
-
-        // Set elevation to ensure containers are above camera (elevation 0) but below annotation (elevation 200)
         container3D.elevation = 50f
-
         val offsetX = containerManager.getContainerCount() * 60f
         val offsetY = containerManager.getContainerCount() * 60f + 100f
         container3D.moveContainerTo(offsetX, offsetY, animate = false)
-
         container3D.onRemoveRequest = {
             containerManager.removeContainer(container3D)
         }
-
         mainLayout.addView(container3D)
         container3D.initializeContent()
-
         annotationTool?.bringToFront()
     }
 
     fun pauseAll3DRenderingForDrawing() {
         val managedContainer3Ds = containerManager.getAllContainers().filterIsInstance<Container3D>()
-
         val directContainer3Ds = mutableListOf<Container3D>()
         for (i in 0 until mainLayout.childCount) {
             val child = mainLayout.getChildAt(i)
@@ -514,10 +792,8 @@ class WhiteboardActivity : AppCompatActivity() {
                 directContainer3Ds.add(child)
             }
         }
-
         val allContainer3Ds = (managedContainer3Ds + directContainer3Ds).distinct()
         android.util.Log.d("DEBUG", "Pausing ${allContainer3Ds.size} 3D containers")
-
         allContainer3Ds.forEach { container ->
             container.pauseRendering()
         }
@@ -525,7 +801,6 @@ class WhiteboardActivity : AppCompatActivity() {
 
     fun resumeAll3DRenderingAfterDrawing() {
         val managedContainer3Ds = containerManager.getAllContainers().filterIsInstance<Container3D>()
-
         val directContainer3Ds = mutableListOf<Container3D>()
         for (i in 0 until mainLayout.childCount) {
             val child = mainLayout.getChildAt(i)
@@ -533,10 +808,8 @@ class WhiteboardActivity : AppCompatActivity() {
                 directContainer3Ds.add(child)
             }
         }
-
         val allContainer3Ds = (managedContainer3Ds + directContainer3Ds).distinct()
         android.util.Log.d("DEBUG", "Resuming ${allContainer3Ds.size} 3D containers")
-
         allContainer3Ds.forEach { container ->
             container.resumeRendering()
         }
@@ -565,22 +838,19 @@ class WhiteboardActivity : AppCompatActivity() {
         cameraManager.shutdown()
         modelBrowserDrawer?.dismiss()
         aiMasterDrawer?.dismiss()
+        settingsPopup?.dismiss()
+        settingsPopup = null
     }
 
     override fun onBackPressed() {
-        // Check if camera is active
         if (cameraManager.isCameraActive()) {
             cameraManager.stopCamera()
             return
         }
-
-        // Check if annotation mode is active
         if (annotationTool?.isInAnnotationMode() == true) {
             annotationTool?.toggleAnnotationMode(false)
             return
         }
-
-        // Handle normal whiteboard exit logic
         if (containerManager.getContainerCount() > 0) {
             android.app.AlertDialog.Builder(this)
                 .setTitle("Save Whiteboard?")
@@ -602,54 +872,32 @@ class WhiteboardActivity : AppCompatActivity() {
         }
     }
 
-    // Add this method to WhiteboardActivity
     fun addImageContainerFromBase64(imageBase64: String) {
         try {
-            // Decode the base64 string to bitmap
             val decodedString = if (imageBase64.contains(",")) {
-                imageBase64.split(",")[1] // Remove data URI prefix if present
+                imageBase64.split(",")[1]
             } else {
                 imageBase64
             }
             val decodedByte = android.util.Base64.decode(decodedString, android.util.Base64.DEFAULT)
             val bitmap = android.graphics.BitmapFactory.decodeByteArray(decodedByte, 0, decodedByte.size)
-
             if (bitmap != null) {
-                // Create a new ContainerImage
                 val containerImage = com.infusory.tutarapp.ui.components.containers.ContainerImage(this)
-
-                // Set the bitmap to the container
                 containerImage.setImage(bitmap, "base64_image_${System.currentTimeMillis()}")
-
-                // Set layout params
                 val layoutParams = RelativeLayout.LayoutParams(
                     containerImage.getDefaultWidth(),
                     containerImage.getDefaultHeight()
                 )
                 containerImage.layoutParams = layoutParams
-
-                // Set elevation to ensure containers are above camera but below annotation
                 containerImage.elevation = 50f
-
-                // Position the container with offset
                 val offsetX = containerManager.getContainerCount() * 60f + 100f
                 val offsetY = containerManager.getContainerCount() * 60f + 200f
                 containerImage.moveContainerTo(offsetX, offsetY, animate = false)
-
-                // Set remove callback
                 containerImage.onRemoveRequest = {
                     containerManager.removeContainer(containerImage)
                 }
-
-                // Add to main layout
                 mainLayout.addView(containerImage)
-
-                // Initialize content
                 containerImage.initializeContent()
-
-                // Register with container manager (if your ContainerManager supports it)
-                // containerManager.addContainer(containerImage) // Uncomment if this method exists
-
                 Toast.makeText(this, "Image added to canvas", Toast.LENGTH_SHORT).show()
             } else {
                 Toast.makeText(this, "Failed to decode image", Toast.LENGTH_SHORT).show()
@@ -660,13 +908,9 @@ class WhiteboardActivity : AppCompatActivity() {
         }
     }
 
-    // Add this method to WhiteboardActivity class
     fun addYouTubeContainerWithUrl(youtubeUrl: String) {
         try {
-            // Use the existing containerManager to add YouTube container
             val youtubeContainer = containerManager.addYouTubeContainer()
-
-            // Set the YouTube URL to the container
             if (youtubeContainer is com.infusory.tutarapp.ui.components.containers.ContainerYouTube) {
                 youtubeContainer.setYouTubeUrl(youtubeUrl)
                 Toast.makeText(this, "YouTube video loaded", Toast.LENGTH_SHORT).show()
@@ -679,27 +923,17 @@ class WhiteboardActivity : AppCompatActivity() {
 
     fun addTextContainerWithContent(text: String, title: String = "") {
         try {
-            // Create a new ContainerText
             val containerText = com.infusory.tutarapp.ui.components.containers.ContainerText(this)
-
-            // Prepare the full text with title if provided
             val fullText = if (title.isNotEmpty()) {
                 "$title\n\n$text"
             } else {
                 text
             }
-
-            // Set the text to the container
             containerText.setText(fullText)
-
-            // Set layout params - adjust size based on content
             val width = (300 * resources.displayMetrics.density).toInt()
             val height = (400 * resources.displayMetrics.density).toInt()
-
             val layoutParams = RelativeLayout.LayoutParams(width, height)
             containerText.layoutParams = layoutParams
-
-            // Set elevation to ensure containers are above camera but below annotation
             containerText.elevation = 50f
 
 
@@ -707,8 +941,6 @@ class WhiteboardActivity : AppCompatActivity() {
             val offsetX = containerManager.getContainerCount() * 60f + 100f
             val offsetY = containerManager.getContainerCount() * 60f + 150f
             containerText.moveContainerTo(offsetX, offsetY, animate = true)
-
-            // Set remove callback
             containerText.onRemoveRequest = {
                 containerManager.removeContainer(containerText)
             }
@@ -718,7 +950,6 @@ class WhiteboardActivity : AppCompatActivity() {
             containerText.initializeContent()
             // Bring annotation tool to front
             annotationTool?.bringToFront()
-
             Toast.makeText(this, "Text added to canvas", Toast.LENGTH_SHORT).show()
         } catch (e: Exception) {
             Toast.makeText(this, "Error adding text: ${e.message}", Toast.LENGTH_SHORT).show()

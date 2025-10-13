@@ -56,7 +56,7 @@ class ModelBrowserDrawer(
             val listType = object : TypeToken<List<ClassData>>() {}.type
 
             try {
-                val inputStream = context.assets.open("class_list_demo.json")
+                val inputStream = context.assets.open("class_data.json")
                 val jsonString = inputStream.bufferedReader().use { it.readText() }
                 inputStream.close()
 
