@@ -90,7 +90,10 @@ class AiMasterDrawer(
                 inputStream.close()
 
                 classesData = gson.fromJson(jsonString, listType)
-                Log.d("AiMasterDrawer", "Successfully loaded ${classesData.size} classes from assets")
+                Log.d(
+                    "AiMasterDrawer",
+                    "Successfully loaded ${classesData.size} classes from assets"
+                )
                 return
             } catch (e: Exception) {
                 Log.d("AiMasterDrawer", "Failed to load from assets, trying other locations...")
@@ -101,7 +104,10 @@ class AiMasterDrawer(
                 val fileReader = java.io.FileReader(internalFile)
                 classesData = gson.fromJson(fileReader, listType)
                 fileReader.close()
-                Log.d("AiMasterDrawer", "Successfully loaded ${classesData.size} classes from internal storage")
+                Log.d(
+                    "AiMasterDrawer",
+                    "Successfully loaded ${classesData.size} classes from internal storage"
+                )
                 return
             }
 
@@ -133,11 +139,19 @@ class AiMasterDrawer(
         classAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         classSpinner.adapter = classAdapter
         classSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+            override fun onItemSelected(
+                parent: AdapterView<*>?,
+                view: View?,
+                position: Int,
+                id: Long
+            ) {
                 selectedClass = if (position > 0) classesData[position - 1] else null
                 setupSubjectSpinner()
             }
-            override fun onNothingSelected(parent: AdapterView<*>?) { selectedClass = null; setupSubjectSpinner() }
+
+            override fun onNothingSelected(parent: AdapterView<*>?) {
+                selectedClass = null; setupSubjectSpinner()
+            }
         }
 
         val optionsList = mutableListOf("Select Option")
@@ -146,10 +160,18 @@ class AiMasterDrawer(
         optionAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         optionSpinner.adapter = optionAdapter
         optionSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+            override fun onItemSelected(
+                parent: AdapterView<*>?,
+                view: View?,
+                position: Int,
+                id: Long
+            ) {
                 selectedOption = if (position > 0) options[position - 1] else ""
             }
-            override fun onNothingSelected(parent: AdapterView<*>?) { selectedOption = "" }
+
+            override fun onNothingSelected(parent: AdapterView<*>?) {
+                selectedOption = ""
+            }
         }
         setupSubjectSpinner()
     }
@@ -157,19 +179,31 @@ class AiMasterDrawer(
     private fun setupSubjectSpinner() {
         val subjectNames = mutableListOf("Select Subject")
         selectedClass?.subjects?.let { subjectNames.addAll(it.map { it.name }) }
-        val subjectAdapter = ArrayAdapter(context, android.R.layout.simple_spinner_item, subjectNames)
+        val subjectAdapter =
+            ArrayAdapter(context, android.R.layout.simple_spinner_item, subjectNames)
         subjectAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         subjectSpinner.adapter = subjectAdapter
         subjectSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
-                selectedSubject = if (position > 0 && selectedClass?.subjects != null) selectedClass!!.subjects!![position - 1] else null
+            override fun onItemSelected(
+                parent: AdapterView<*>?,
+                view: View?,
+                position: Int,
+                id: Long
+            ) {
+                selectedSubject =
+                    if (position > 0 && selectedClass?.subjects != null) selectedClass!!.subjects!![position - 1] else null
             }
-            override fun onNothingSelected(parent: AdapterView<*>?) { selectedSubject = null }
+
+            override fun onNothingSelected(parent: AdapterView<*>?) {
+                selectedSubject = null
+            }
         }
     }
 
     private fun performSearch() {
-        if (selectedClass == null || selectedSubject == null || selectedOption.isEmpty() || queryEditText.text.toString().trim().isEmpty()) {
+        if (selectedClass == null || selectedSubject == null || selectedOption.isEmpty() || queryEditText.text.toString()
+                .trim().isEmpty()
+        ) {
             Toast.makeText(context, "Please fill all fields", Toast.LENGTH_SHORT).show()
             return
         }
@@ -206,7 +240,11 @@ class AiMasterDrawer(
                         Log.e("AiMasterDrawer", "API Response: $responseBody")
                         handleApiResponse(responseBody)
                     } else {
-                        Toast.makeText(context, "Search failed: ${response.code}", Toast.LENGTH_LONG).show()
+                        Toast.makeText(
+                            context,
+                            "Search failed: ${response.code}",
+                            Toast.LENGTH_LONG
+                        ).show()
                     }
                 }
             } catch (e: IOException) {
@@ -241,7 +279,8 @@ class AiMasterDrawer(
             }
         } catch (e: Exception) {
             Log.e("AiMasterDrawer", "Error handling API response", e)
-            Toast.makeText(context, "Error processing response: ${e.message}", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, "Error processing response: ${e.message}", Toast.LENGTH_LONG)
+                .show()
         }
     }
 
@@ -268,7 +307,8 @@ class AiMasterDrawer(
 
             val displayMetrics = context.resources.displayMetrics
             val configuration = context.resources.configuration
-            val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+            val isLandscape =
+                configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
 
             val dialogWidth = (550 * displayMetrics.density).toInt()
             val dialogHeight = (displayMetrics.heightPixels * 0.90).toInt()
@@ -276,7 +316,8 @@ class AiMasterDrawer(
             val layoutParams = window.attributes
             layoutParams.width = dialogWidth
             layoutParams.height = dialogHeight
-            layoutParams.gravity = if (isLandscape) Gravity.CENTER else Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+            layoutParams.gravity =
+                if (isLandscape) Gravity.CENTER else Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
             layoutParams.dimAmount = 0.6f
             window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
             window.attributes = layoutParams
@@ -393,53 +434,28 @@ class AiMasterDrawer(
                 addView(createLessonPlanCard("TOPIC", lessonPlan.getString("topic"), true))
             }
             if (lessonPlan.has("explanation")) {
-                addView(createLessonPlanCard("Explanation", lessonPlan.getString("explanation"), false))
+                addView(
+                    createLessonPlanCard(
+                        "Explanation",
+                        lessonPlan.getString("explanation"),
+                        false
+                    )
+                )
             }
             if (lessonPlan.has("conclusion")) {
-                addView(createLessonPlanCard("Conclusion", lessonPlan.getString("conclusion"), false))
+                addView(
+                    createLessonPlanCard(
+                        "Conclusion",
+                        lessonPlan.getString("conclusion"),
+                        false
+                    )
+                )
             }
             if (lessonPlan.has("notes")) {
                 addView(createLessonPlanCard("Notes", lessonPlan.getString("notes"), false))
             }
         }
     }
-
-//    private fun createLessonPlanCard(heading: String, content: String, isTopic: Boolean): LinearLayout {
-//        return LinearLayout(context).apply {
-//            orientation = LinearLayout.VERTICAL
-//            setPadding(dpToPx(16), dpToPx(14), dpToPx(16), dpToPx(14))
-//
-//            background = createGradientBackground()
-//            layoutParams = createMarginLayoutParams(dpToPx(12), dpToPx(6), dpToPx(12), dpToPx(6))
-//            elevation = 2f
-//            isClickable = true
-//            setOnClickListener {
-//                Log.d("AiMasterDrawer", "$heading clicked")
-//                Toast.makeText(context, heading, Toast.LENGTH_SHORT).show()
-//            }
-//
-//            // Heading
-//            addView(TextView(context).apply {
-//                text = heading
-//                textSize = if (isTopic) 14f else 16f
-//                setTypeface(null, android.graphics.Typeface.BOLD)
-//                setTextColor(Color.WHITE)
-//                letterSpacing = if (isTopic) 0.1f else 0.05f
-//                gravity = if (isTopic) Gravity.CENTER else Gravity.START
-//            })
-//
-//            // Content
-//            addView(TextView(context).apply {
-//                text = content
-//                textSize = if (isTopic) 18f else 15f
-//                setTextColor(Color.WHITE)
-//                setPadding(0, dpToPx(8), 0, 0)
-//                setTextIsSelectable(true)
-//                setLineSpacing(1.4f, 1.0f)
-//                gravity = if (isTopic) Gravity.CENTER else Gravity.START
-//            })
-//        }
-//    }
 
     private fun addTextContainerToWhiteboard(text: String, title: String = "") {
         try {
@@ -456,43 +472,47 @@ class AiMasterDrawer(
         }
     }
 
-private fun createLessonPlanCard(heading: String, content: String, isTopic: Boolean): LinearLayout {
-    return LinearLayout(context).apply {
-        orientation = LinearLayout.VERTICAL
-        setPadding(dpToPx(16), dpToPx(14), dpToPx(16), dpToPx(14))
+    private fun createLessonPlanCard(
+        heading: String,
+        content: String,
+        isTopic: Boolean
+    ): LinearLayout {
+        return LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dpToPx(16), dpToPx(14), dpToPx(16), dpToPx(14))
 
-        background = createGradientBackground()
-        layoutParams = createMarginLayoutParams(dpToPx(12), dpToPx(6), dpToPx(12), dpToPx(6))
-        elevation = 2f
-        isClickable = true
-        setOnClickListener {
-            Log.d("AiMasterDrawer", "$heading clicked")
-            // Add text container instead of just showing toast
-            addTextContainerToWhiteboard(content, heading)
+            background = createGradientBackground()
+            layoutParams = createMarginLayoutParams(dpToPx(12), dpToPx(6), dpToPx(12), dpToPx(6))
+            elevation = 2f
+            isClickable = true
+            setOnClickListener {
+                Log.d("AiMasterDrawer", "$heading clicked")
+                // Add text container instead of just showing toast
+                addTextContainerToWhiteboard(content, heading)
+            }
+
+            // Heading
+            addView(TextView(context).apply {
+                text = heading
+                textSize = if (isTopic) 14f else 16f
+                setTypeface(null, android.graphics.Typeface.BOLD)
+                setTextColor(Color.WHITE)
+                letterSpacing = if (isTopic) 0.1f else 0.05f
+                gravity = if (isTopic) Gravity.CENTER else Gravity.START
+            })
+
+            // Content
+            addView(TextView(context).apply {
+                text = content
+                textSize = if (isTopic) 18f else 15f
+                setTextColor(Color.WHITE)
+                setPadding(0, dpToPx(8), 0, 0)
+                setTextIsSelectable(true)
+                setLineSpacing(1.4f, 1.0f)
+                gravity = if (isTopic) Gravity.CENTER else Gravity.START
+            })
         }
-
-        // Heading
-        addView(TextView(context).apply {
-            text = heading
-            textSize = if (isTopic) 14f else 16f
-            setTypeface(null, android.graphics.Typeface.BOLD)
-            setTextColor(Color.WHITE)
-            letterSpacing = if (isTopic) 0.1f else 0.05f
-            gravity = if (isTopic) Gravity.CENTER else Gravity.START
-        })
-
-        // Content
-        addView(TextView(context).apply {
-            text = content
-            textSize = if (isTopic) 18f else 15f
-            setTextColor(Color.WHITE)
-            setPadding(0, dpToPx(8), 0, 0)
-            setTextIsSelectable(true)
-            setLineSpacing(1.4f, 1.0f)
-            gravity = if (isTopic) Gravity.CENTER else Gravity.START
-        })
     }
-}
     // ===== DESCRIPTION DISPLAY =====
 
     private fun displayDescription(descriptionArray: JSONArray) {
@@ -534,69 +554,39 @@ private fun createLessonPlanCard(heading: String, content: String, isTopic: Bool
         }
     }
 
-//    private fun createDescriptionPoint(point: String, index: Int): LinearLayout {
-//        return LinearLayout(context).apply {
-//            orientation = LinearLayout.HORIZONTAL
-//            setPadding(dpToPx(12), dpToPx(10), dpToPx(12), dpToPx(10))
-//
-//            background = createDashedBorder()
-//            layoutParams = createMarginLayoutParams(dpToPx(12), dpToPx(4), dpToPx(12), dpToPx(4))
-//            isClickable = true
-//            setOnClickListener {
-//                Log.d("AiMasterDrawer", "Point ${index + 1} clicked")
-//                Toast.makeText(context, "Point ${index + 1}", Toast.LENGTH_SHORT).show()
-//            }
-//
-//            // Bullet
-//            addView(View(context).apply {
-//                background = createCircleBullet()
-//                layoutParams = LinearLayout.LayoutParams(dpToPx(8), dpToPx(8)).apply {
-//                    setMargins(dpToPx(4), dpToPx(8), dpToPx(12), 0)
-//                }
-//            })
-//
-//            // Text
-//            addView(TextView(context).apply {
-//                text = point
-//                textSize = 14f
-//                setTextColor(Color.WHITE)
-//                setLineSpacing(1.4f, 1.0f)
-//                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-//            })
-//        }
-//    }
-private fun createDescriptionPoint(point: String, index: Int): LinearLayout {
-    return LinearLayout(context).apply {
-        orientation = LinearLayout.HORIZONTAL
-        setPadding(dpToPx(12), dpToPx(10), dpToPx(12), dpToPx(10))
+    private fun createDescriptionPoint(point: String, index: Int): LinearLayout {
+        return LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(dpToPx(12), dpToPx(10), dpToPx(12), dpToPx(10))
 
-        background = createDashedBorder()
-        layoutParams = createMarginLayoutParams(dpToPx(12), dpToPx(4), dpToPx(12), dpToPx(4))
-        isClickable = true
-        setOnClickListener {
-            Log.d("AiMasterDrawer", "Point ${index + 1} clicked")
-            // Add text container instead of just showing toast
-            addTextContainerToWhiteboard(point, "Point ${index + 1}")
-        }
-
-        // Bullet
-        addView(View(context).apply {
-            background = createCircleBullet()
-            layoutParams = LinearLayout.LayoutParams(dpToPx(8), dpToPx(8)).apply {
-                setMargins(dpToPx(4), dpToPx(8), dpToPx(12), 0)
+            background = createDashedBorder()
+            layoutParams = createMarginLayoutParams(dpToPx(12), dpToPx(4), dpToPx(12), dpToPx(4))
+            isClickable = true
+            setOnClickListener {
+                Log.d("AiMasterDrawer", "Point ${index + 1} clicked")
+                // Add text container instead of just showing toast
+                addTextContainerToWhiteboard(point, "Point ${index + 1}")
             }
-        })
 
-        // Text
-        addView(TextView(context).apply {
-            text = point
-            textSize = 14f
-            setTextColor(Color.WHITE)
-            setLineSpacing(1.4f, 1.0f)
-            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-        })
+            // Bullet
+            addView(View(context).apply {
+                background = createCircleBullet()
+                layoutParams = LinearLayout.LayoutParams(dpToPx(8), dpToPx(8)).apply {
+                    setMargins(dpToPx(4), dpToPx(8), dpToPx(12), 0)
+                }
+            })
+
+            // Text
+            addView(TextView(context).apply {
+                text = point
+                textSize = 14f
+                setTextColor(Color.WHITE)
+                setLineSpacing(1.4f, 1.0f)
+                layoutParams =
+                    LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            })
+        }
     }
-}
     // ===== ADD THESE HELPER METHODS TO YOUR AiMasterDrawer CLASS =====
 
 // Add these methods right after the displayImages() method and before clearResults()
@@ -620,7 +610,12 @@ private fun createDescriptionPoint(point: String, index: Int): LinearLayout {
         }
     }
 
-    private fun createMarginLayoutParams(left: Int, top: Int, right: Int, bottom: Int): LinearLayout.LayoutParams {
+    private fun createMarginLayoutParams(
+        left: Int,
+        top: Int,
+        right: Int,
+        bottom: Int
+    ): LinearLayout.LayoutParams {
         return LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
             LinearLayout.LayoutParams.WRAP_CONTENT
@@ -629,7 +624,10 @@ private fun createDescriptionPoint(point: String, index: Int): LinearLayout {
         }
     }
 
-    private fun createRoundedBackground(colorHex: String, cornerRadius: Float): android.graphics.drawable.GradientDrawable {
+    private fun createRoundedBackground(
+        colorHex: String,
+        cornerRadius: Float
+    ): android.graphics.drawable.GradientDrawable {
         return android.graphics.drawable.GradientDrawable().apply {
             setColor(Color.parseColor(colorHex))
             this.cornerRadius = cornerRadius
@@ -651,7 +649,12 @@ private fun createDescriptionPoint(point: String, index: Int): LinearLayout {
     private fun createDashedBorder(): android.graphics.drawable.GradientDrawable {
         return android.graphics.drawable.GradientDrawable().apply {
             setColor(Color.TRANSPARENT)
-            setStroke(dpToPx(1), Color.parseColor("#666666"), dpToPx(8).toFloat(), dpToPx(4).toFloat())
+            setStroke(
+                dpToPx(1),
+                Color.parseColor("#666666"),
+                dpToPx(8).toFloat(),
+                dpToPx(4).toFloat()
+            )
             cornerRadius = dpToPx(8).toFloat()
         }
     }
@@ -680,7 +683,10 @@ private fun createDescriptionPoint(point: String, index: Int): LinearLayout {
 
         val horizontalContainer = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
-            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
         }
 
         val scrollView = HorizontalScrollView(context).apply {
@@ -708,7 +714,10 @@ private fun createDescriptionPoint(point: String, index: Int): LinearLayout {
 
         val horizontalContainer = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
-            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
         }
 
         val scrollView = HorizontalScrollView(context).apply {
@@ -749,9 +758,11 @@ private fun createDescriptionPoint(point: String, index: Int): LinearLayout {
             orientation = LinearLayout.VERTICAL
             setPadding(dpToPx(8), dpToPx(8), dpToPx(8), dpToPx(8))
             setBackgroundResource(R.drawable.modern_video_card_background)
-            layoutParams = LinearLayout.LayoutParams(dpToPx(200), LinearLayout.LayoutParams.WRAP_CONTENT).apply {
-                setMargins(dpToPx(8), 0, dpToPx(8), 0)
-            }
+            layoutParams =
+                LinearLayout.LayoutParams(dpToPx(200), LinearLayout.LayoutParams.WRAP_CONTENT)
+                    .apply {
+                        setMargins(dpToPx(8), 0, dpToPx(8), 0)
+                    }
             isClickable = true
             elevation = 4f
             // ✅ Change click listener to add YouTube container
@@ -762,7 +773,8 @@ private fun createDescriptionPoint(point: String, index: Int): LinearLayout {
 
         // ✅ Create a FrameLayout to overlay the play icon on the thumbnail
         val thumbnailContainer = FrameLayout(context).apply {
-            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dpToPx(80))
+            layoutParams =
+                LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dpToPx(80))
         }
 
         val thumbnailView = ImageView(context).apply {
@@ -812,14 +824,17 @@ private fun createDescriptionPoint(point: String, index: Int): LinearLayout {
         cardLayout.addView(thumbnailContainer)
         return cardLayout
     }
+
     private fun create3DModelCard(name: String): LinearLayout {
         val cardLayout = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dpToPx(8), dpToPx(8), dpToPx(8), dpToPx(8))
             setBackgroundResource(R.drawable.modern_video_card_background)
-            layoutParams = LinearLayout.LayoutParams(dpToPx(120), LinearLayout.LayoutParams.WRAP_CONTENT).apply {
-                setMargins(dpToPx(8), 0, dpToPx(8), 0)
-            }
+            layoutParams =
+                LinearLayout.LayoutParams(dpToPx(120), LinearLayout.LayoutParams.WRAP_CONTENT)
+                    .apply {
+                        setMargins(dpToPx(8), 0, dpToPx(8), 0)
+                    }
             isClickable = true
             elevation = 4f
             setOnClickListener { open3DModel(name) }
@@ -828,7 +843,8 @@ private fun createDescriptionPoint(point: String, index: Int): LinearLayout {
         val thumbnailView = ImageView(context).apply {
             setImageResource(R.drawable.ic_ar) // Ensure this drawable exists
             scaleType = ImageView.ScaleType.CENTER_CROP
-            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dpToPx(80))
+            layoutParams =
+                LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dpToPx(80))
         }
 
         val titleView = TextView(context).apply {
@@ -840,7 +856,10 @@ private fun createDescriptionPoint(point: String, index: Int): LinearLayout {
             ellipsize = TextUtils.TruncateAt.END
             gravity = Gravity.CENTER_HORIZONTAL
             setPadding(0, dpToPx(4), 0, 0)
-            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
         }
 
         cardLayout.addView(thumbnailView)
@@ -851,7 +870,10 @@ private fun createDescriptionPoint(point: String, index: Int): LinearLayout {
     private fun createSectionTitle(title: String): LinearLayout {
         val sectionLayout = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
-            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
                 setMargins(0, dpToPx(20), 0, dpToPx(12))
             }
             gravity = Gravity.CENTER_VERTICAL
@@ -893,7 +915,10 @@ private fun createDescriptionPoint(point: String, index: Int): LinearLayout {
             orientation = LinearLayout.VERTICAL
             setPadding(dpToPx(16), dpToPx(12), dpToPx(16), dpToPx(12))
             setBackgroundResource(R.drawable.lesson_plan_card_background)
-            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
                 setMargins(0, dpToPx(6), 0, dpToPx(6))
             }
             elevation = 2f
@@ -926,7 +951,10 @@ private fun createDescriptionPoint(point: String, index: Int): LinearLayout {
             orientation = LinearLayout.VERTICAL
             setPadding(dpToPx(16), dpToPx(12), dpToPx(16), dpToPx(12))
             setBackgroundResource(R.drawable.modern_mcq_card_background)
-            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
                 setMargins(0, dpToPx(6), 0, dpToPx(6))
             }
             elevation = 2f
@@ -934,7 +962,10 @@ private fun createDescriptionPoint(point: String, index: Int): LinearLayout {
 
         val questionHeader = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
-            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
             gravity = Gravity.CENTER_VERTICAL
         }
 
@@ -945,7 +976,10 @@ private fun createDescriptionPoint(point: String, index: Int): LinearLayout {
             setTextColor(Color.WHITE)
             setPadding(dpToPx(8), dpToPx(4), dpToPx(8), dpToPx(4))
             setBackgroundColor(Color.parseColor("#667eea"))
-            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
                 setMargins(0, 0, dpToPx(12), 0)
             }
         }
@@ -964,7 +998,8 @@ private fun createDescriptionPoint(point: String, index: Int): LinearLayout {
         cardLayout.addView(questionHeader)
 
         val spacer = View(context).apply {
-            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dpToPx(8))
+            layoutParams =
+                LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dpToPx(8))
         }
         cardLayout.addView(spacer)
 
@@ -977,11 +1012,18 @@ private fun createDescriptionPoint(point: String, index: Int): LinearLayout {
 
             val optionLayout = LinearLayout(context).apply {
                 orientation = LinearLayout.HORIZONTAL
-                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
                     setMargins(0, dpToPx(4), 0, dpToPx(4))
                 }
                 setPadding(dpToPx(8), dpToPx(6), dpToPx(8), dpToPx(6))
-                setBackgroundColor(if (isCorrect) Color.parseColor("#DCFCE7") else Color.parseColor("#F9FAFB"))
+                setBackgroundColor(
+                    if (isCorrect) Color.parseColor("#DCFCE7") else Color.parseColor(
+                        "#F9FAFB"
+                    )
+                )
             }
 
             val optionLabel = TextView(context).apply {
@@ -997,10 +1039,16 @@ private fun createDescriptionPoint(point: String, index: Int): LinearLayout {
                 setTypeface(null, android.graphics.Typeface.BOLD)
                 setTextColor(Color.WHITE)
                 setPadding(dpToPx(6), dpToPx(2), dpToPx(6), dpToPx(2))
-                setBackgroundColor(if (isCorrect) Color.parseColor("#16A34A") else Color.parseColor("#6B7280"))
-                layoutParams = LinearLayout.LayoutParams(dpToPx(24), LinearLayout.LayoutParams.WRAP_CONTENT).apply {
-                    setMargins(0, 0, dpToPx(12), 0)
-                }
+                setBackgroundColor(
+                    if (isCorrect) Color.parseColor("#16A34A") else Color.parseColor(
+                        "#6B7280"
+                    )
+                )
+                layoutParams =
+                    LinearLayout.LayoutParams(dpToPx(24), LinearLayout.LayoutParams.WRAP_CONTENT)
+                        .apply {
+                            setMargins(0, 0, dpToPx(12), 0)
+                        }
                 gravity = Gravity.CENTER
             }
 
@@ -1009,7 +1057,8 @@ private fun createDescriptionPoint(point: String, index: Int): LinearLayout {
                 textSize = 13f
                 setTextColor(if (isCorrect) Color.parseColor("#166534") else Color.parseColor("#374151"))
                 if (isCorrect) setTypeface(null, android.graphics.Typeface.BOLD)
-                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                layoutParams =
+                    LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
                 setLineSpacing(1.3f, 1.0f)
             }
 
@@ -1027,7 +1076,8 @@ private fun createDescriptionPoint(point: String, index: Int): LinearLayout {
 
     private fun addSpacer(height: Int = 20) {
         val spacer = View(context).apply {
-            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dpToPx(height))
+            layoutParams =
+                LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dpToPx(height))
         }
         resultsContainer.addView(spacer)
     }
@@ -1052,7 +1102,8 @@ private fun createDescriptionPoint(point: String, index: Int): LinearLayout {
                     dismiss() // Close the drawer after adding the image
                 } catch (e: Exception) {
                     Log.e("AiMasterDrawer", "Error adding image", e)
-                    Toast.makeText(context, "Error adding image: ${e.message}", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "Error adding image: ${e.message}", Toast.LENGTH_SHORT)
+                        .show()
                 }
             }
         }
@@ -1064,7 +1115,8 @@ private fun createDescriptionPoint(point: String, index: Int): LinearLayout {
                 } else {
                     imageBase64
                 }
-                val decodedByte = android.util.Base64.decode(decodedString, android.util.Base64.DEFAULT)
+                val decodedByte =
+                    android.util.Base64.decode(decodedString, android.util.Base64.DEFAULT)
                 val bitmap = BitmapFactory.decodeByteArray(decodedByte, 0, decodedByte.size)
                 setImageBitmap(bitmap)
                 scaleType = ImageView.ScaleType.CENTER_CROP
@@ -1088,7 +1140,10 @@ private fun createDescriptionPoint(point: String, index: Int): LinearLayout {
 
         val horizontalContainer = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
-            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
         }
 
         val scrollView = HorizontalScrollView(context).apply {

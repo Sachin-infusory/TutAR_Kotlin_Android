@@ -677,31 +677,34 @@ class WhiteboardActivity : AppCompatActivity() {
         }
     }
 
+    // Add this updated method to your WhiteboardActivity class
+
+    // Add this updated method to your WhiteboardActivity class
+
     fun addTextContainerWithContent(text: String, title: String = "") {
         try {
             // Create a new ContainerText
             val containerText = com.infusory.tutarapp.ui.components.containers.ContainerText(this)
 
-            // Prepare the full text with title if provided
-            val fullText = if (title.isNotEmpty()) {
-                "$title\n\n$text"
-            } else {
-                text
+            // Set the title if provided
+            if (title.isNotEmpty()) {
+                containerText.setTitle(title)
             }
 
-            // Set the text to the container
-            containerText.setText(fullText)
+            // Set the text content
+            containerText.setText(text)
 
-            // Set layout params - adjust size based on content
-            val width = (300 * resources.displayMetrics.density).toInt()
-            val height = (400 * resources.displayMetrics.density).toInt()
+            // Set layout params with WRAP_CONTENT for dynamic height
+            val width = (350 * resources.displayMetrics.density).toInt()
 
-            val layoutParams = RelativeLayout.LayoutParams(width, height)
+            val layoutParams = RelativeLayout.LayoutParams(
+                width,
+                RelativeLayout.LayoutParams.WRAP_CONTENT  // Dynamic height based on content
+            )
             containerText.layoutParams = layoutParams
 
             // Set elevation to ensure containers are above camera but below annotation
             containerText.elevation = 50f
-
 
             // Position the container with offset based on existing containers
             val offsetX = containerManager.getContainerCount() * 60f + 100f
@@ -712,15 +715,19 @@ class WhiteboardActivity : AppCompatActivity() {
             containerText.onRemoveRequest = {
                 containerManager.removeContainer(containerText)
             }
+
             // Add to main layout
             mainLayout.addView(containerText)
+
             // Initialize content
             containerText.initializeContent()
+
             // Bring annotation tool to front
             annotationTool?.bringToFront()
 
             Toast.makeText(this, "Text added to canvas", Toast.LENGTH_SHORT).show()
         } catch (e: Exception) {
+            android.util.Log.e("WhiteboardActivity", "Error adding text container", e)
             Toast.makeText(this, "Error adding text: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
