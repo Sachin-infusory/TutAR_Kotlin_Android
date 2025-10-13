@@ -11,7 +11,6 @@ import android.widget.LinearLayout
 import android.widget.ImageView
 import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
-import androidx.appcompat.app.AlertDialog
 import com.google.android.filament.View
 import com.google.android.filament.android.UiHelper
 import com.google.android.filament.utils.AutomationEngine
@@ -22,6 +21,9 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import android.graphics.PixelFormat
 import com.infusory.tutarapp.ui.data.ModelData
+import com.infusory.tutarapp.utils.ModelDecryptionUtil
+import java.io.File
+import java.io.FileInputStream
 
 class Container3D @JvmOverloads constructor(
     context: Context,
@@ -503,13 +505,63 @@ class Container3D @JvmOverloads constructor(
 
     private fun loadModelFromAssets(filename: String): ByteBuffer? {
         return try {
+            // Extract actual filename by removing path prefix (e.g., "production/")
+            val actualFilename = filename.substringAfterLast('/')
+            android.util.Log.d("Container3D", "Loading model - Original: $filename, Extracted: $actualFilename")
+
+            // Try internal storage first
+            val encryptedModelsDir = File(context.filesDir, "encrypted_models")
+            val modelFile = File(encryptedModelsDir, actualFilename)
+
+            if (modelFile.exists() && modelFile.canRead()) {
+                android.util.Log.d("Container3D", "Found encrypted model: ${modelFile.absolutePath}")
+
+                // Decrypt the model using utility
+                val decryptedBuffer = ModelDecryptionUtil.decryptModelFile(modelFile)
+                if (decryptedBuffer != null) {
+                    return decryptedBuffer
+                } else {
+                    android.util.Log.e("Container3D", "Failed to decrypt model: $actualFilename")
+                }
+            }
+
+            // Try external storage
+            val externalModelsDir = File(context.getExternalFilesDir(null), "encrypted_models")
+            val externalModelFile = File(externalModelsDir, actualFilename)
+
+            if (externalModelFile.exists() && externalModelFile.canRead()) {
+                android.util.Log.d("Container3D", "Found encrypted model in external storage: ${externalModelFile.absolutePath}")
+
+                // Decrypt the model using utility
+                val decryptedBuffer = ModelDecryptionUtil.decryptModelFile(externalModelFile)
+                if (decryptedBuffer != null) {
+                    return decryptedBuffer
+                }
+            }
+
+            // Fallback to assets (unencrypted)
+            android.util.Log.w("Container3D", "Model not found in storage, trying assets: $actualFilename")
+            tryLoadFromAssets(actualFilename)
+
+        } catch (e: Exception) {
+            android.util.Log.e("Container3D", "Failed to load model: $filename", e)
+            val actualFilename = filename.substringAfterLast('/')
+            tryLoadFromAssets(actualFilename)
+        }
+    }
+
+
+    private fun tryLoadFromAssets(filename: String): ByteBuffer? {
+        return try {
             val assetPath = "models/$filename"
             context.assets.open(assetPath).use { input ->
+                android.util.Log.d("Container3D", "Loaded model from assets: $assetPath")
                 createBufferFromStream(input)
             }
         } catch (e: Exception) {
             try {
                 context.assets.open(filename).use { input ->
+                    android.util.Log.d("Container3D", "Loaded model from assets: $filename")
                     createBufferFromStream(input)
                 }
             } catch (e2: Exception) {
@@ -517,6 +569,15 @@ class Container3D @JvmOverloads constructor(
                 null
             }
         }
+    }
+
+    private fun ensureEncryptedModelsDirectory(): File {
+        val encryptedModelsDir = File(context.filesDir, "encrypted_models")
+        if (!encryptedModelsDir.exists()) {
+            encryptedModelsDir.mkdirs()
+            android.util.Log.d("Container3D", "Created encrypted_models directory: ${encryptedModelsDir.absolutePath}")
+        }
+        return encryptedModelsDir
     }
 
     private fun createBufferFromStream(inputStream: java.io.InputStream): ByteBuffer {
