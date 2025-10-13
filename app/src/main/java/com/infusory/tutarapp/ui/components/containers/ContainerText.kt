@@ -1,14 +1,19 @@
-// ContainerText.kt
 package com.infusory.tutarapp.ui.components.containers
 
 import android.content.Context
 import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 import android.util.AttributeSet
-import android.widget.TextView
+import android.view.Gravity
+import android.view.View
 import android.widget.EditText
+import android.widget.FrameLayout
+import android.widget.ImageView
+import android.widget.LinearLayout
+import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
-import com.infusory.tutarapp.ui.components.containers.ControlButton
-import com.infusory.tutarapp.ui.components.containers.ButtonPosition
+import com.infusory.tutarapp.R
 
 class ContainerText @JvmOverloads constructor(
     context: Context,
@@ -19,186 +24,328 @@ class ContainerText @JvmOverloads constructor(
     private var currentText = "Sample Text Container\n\nClick edit to modify this text."
     private var currentTextSize = 14f
     private var currentTextColor = Color.BLACK
-    private var currentBackgroundColor = Color.parseColor("#F0F0F0")
+    private var currentBackgroundColor = Color.TRANSPARENT
+
     private var currentTextView: TextView? = null
+    private var editTextView: EditText? = null
+    private var mainContainer: LinearLayout? = null
+    private var contentContainer: FrameLayout? = null
+    private var controlsContainer: LinearLayout? = null
+
+    // Internal states
+    private var isEditing = false
+
+    // Undo/redo
+    private val undoStack = mutableListOf<String>()
+    private val redoStack = mutableListOf<String>()
+
+    // Store button references
+    private val sideControlButtons = mutableListOf<ImageView>()
+    private var editButton: ImageView? = null
+    private var undoButton: ImageView? = null
+    private var redoButton: ImageView? = null
+    private var removeButton: ImageView? = null
+    private var saveButton: ImageView? = null
+    private var cancelButton: ImageView? = null
 
     init {
+        // Disable background for main container since content container will have it
+        showBackground = false
+
         setupTextContainer()
+        setPadding(4, 4, 4, 4)
+        clipChildren = false
+        clipToPadding = false
+        android.util.Log.d("ContainerText", "ContainerText initialized")
     }
 
     private fun setupTextContainer() {
-//        clearControlButtons() // Clear any existing buttons from base class
-
-        val buttons = listOf(
-            ControlButton(
-                iconRes = android.R.drawable.ic_menu_close_clear_cancel,
-                onClick = { onRemoveRequest?.invoke() },
-                position = ButtonPosition.TOP_END
-            ),
-            ControlButton(
-                iconRes = android.R.drawable.ic_menu_edit,
-                onClick = { showEditDialog() },
-                position = ButtonPosition.BOTTOM_START
-            ),
-            ControlButton(
-                iconRes = android.R.drawable.ic_menu_more,
-                onClick = { showTextMenu() },
-                position = ButtonPosition.BOTTOM_END
-            )
-        )
-
-        addControlButtons(buttons)
+        initializeContent()
     }
 
     override fun initializeContent() {
+        createMainContainer()
         createTextView()
+        setupControlButtons()
+    }
+
+    private fun createMainContainer() {
+        mainContainer = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT
+            )
+        }
+
+        controlsContainer = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(
+                dpToPx(48),
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            setPadding(dpToPx(4), dpToPx(4), dpToPx(4), dpToPx(4))
+            gravity = Gravity.TOP
+        }
+
+        contentContainer = FrameLayout(context).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                0,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                1f
+            )
+            setBackgroundResource(R.drawable.dotted_border_background)
+            setPadding(dpToPx(2), dpToPx(2), dpToPx(2), dpToPx(2))
+        }
+
+        mainContainer?.let { container ->
+            if (container is LinearLayout) {
+                container.addView(controlsContainer)
+                container.addView(contentContainer)
+            }
+        }
+
+        addView(mainContainer)
+    }
+
+    private fun setupControlButtons() {
+        // Edit button
+//        editButton = createSideControlButton(android.R.drawable.ic_menu_edit, "Edit") { enterEditMode() }
+//        controlsContainer?.addView(editButton)
+//        sideControlButtons.add(editButton!!)
+//        controlsContainer?.addView(createSpacer())
+//
+//        // Undo button
+//        undoButton = createSideControlButton(android.R.drawable.ic_menu_revert, "Undo") { undo() }
+//        controlsContainer?.addView(undoButton)
+//        sideControlButtons.add(undoButton!!)
+//        controlsContainer?.addView(createSpacer())
+//
+//        // Redo button
+//        redoButton = createSideControlButton(android.R.drawable.ic_dialog_dialer, "Redo") { redo() }
+//        controlsContainer?.addView(redoButton)
+//        sideControlButtons.add(redoButton!!)
+//        controlsContainer?.addView(createSpacer())
+
+        // Remove button
+        removeButton = createSideControlButton(
+            android.R.drawable.ic_menu_close_clear_cancel,
+            "Remove"
+        ) { showRemoveConfirmationDialog() }
+        controlsContainer?.addView(removeButton)
+        sideControlButtons.add(removeButton!!)
+        controlsContainer?.addView(createSpacer())
+
+        // Save button
+//        saveButton = createSideControlButton(android.R.drawable.ic_menu_save, "Save") { saveEdit() }
+//        controlsContainer?.addView(saveButton)
+//        sideControlButtons.add(saveButton!!)
+//        saveButton?.visibility = View.GONE
+//        controlsContainer?.addView(createSpacer())
+//
+//        // Cancel button
+//        cancelButton = createSideControlButton(android.R.drawable.ic_menu_close_clear_cancel, "Cancel") { cancelEdit() }
+//        controlsContainer?.addView(cancelButton)
+//        sideControlButtons.add(cancelButton!!)
+//        cancelButton?.visibility = View.GONE
+//        controlsContainer?.addView(createSpacer())
+    }
+
+    private fun createSideControlButton(
+        iconRes: Int,
+        tooltip: String,
+        onClick: () -> Unit
+    ): ImageView {
+        return ImageView(context).apply {
+            layoutParams = LinearLayout.LayoutParams(dpToPx(32), dpToPx(32)).apply {
+                setMargins(dpToPx(2), dpToPx(2), dpToPx(2), dpToPx(2))
+            }
+            setImageResource(iconRes)
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(Color.TRANSPARENT)
+                setStroke(0, Color.TRANSPARENT)
+            }
+            scaleType = ImageView.ScaleType.CENTER
+            elevation = 4f
+            alpha = 1.0f
+            contentDescription = tooltip
+
+            setOnClickListener { onClick() }
+
+            setOnTouchListener { _, event ->
+                when (event.action) {
+                    android.view.MotionEvent.ACTION_DOWN -> {
+                        alpha = 0.6f
+                        scaleX = 0.95f
+                        scaleY = 0.95f
+                    }
+
+                    android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> {
+                        alpha = 1.0f
+                        scaleX = 1.0f
+                        scaleY = 1.0f
+                    }
+                }
+                false
+            }
+
+            android.util.Log.d("ContainerText", "Button created: $tooltip")
+        }
+    }
+
+    private fun createSpacer(): View {
+        return View(context).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dpToPx(2)
+            )
+        }
+    }
+
+    private fun updateButtonVisibility() {
+        if (isEditing) {
+            // Hide default buttons
+            editButton?.visibility = View.GONE
+            undoButton?.visibility = View.GONE
+            redoButton?.visibility = View.GONE
+            removeButton?.visibility = View.GONE
+            // Show edit mode buttons
+            saveButton?.visibility = View.VISIBLE
+            cancelButton?.visibility = View.VISIBLE
+        } else {
+            // Show default buttons
+            editButton?.visibility = View.VISIBLE
+            undoButton?.visibility = View.VISIBLE
+            redoButton?.visibility = View.VISIBLE
+            removeButton?.visibility = View.VISIBLE
+            // Hide edit mode buttons
+            saveButton?.visibility = View.GONE
+            cancelButton?.visibility = View.GONE
+        }
+
+        // Update spacer visibility based on adjacent buttons
+        controlsContainer?.let { container ->
+            for (i in 0 until container.childCount) {
+                val child = container.getChildAt(i)
+                if (child is View && child !is ImageView) {
+                    val prevButton = if (i > 0) container.getChildAt(i - 1) else null
+                    child.visibility =
+                        if (prevButton?.visibility == View.VISIBLE) View.VISIBLE else View.GONE
+                }
+            }
+        }
+
+        // Request layout updates
+        controlsContainer?.requestLayout()
+        mainContainer?.requestLayout()
+        contentContainer?.requestLayout()
+        requestLayout()
+    }
+
+    private fun showRemoveConfirmationDialog() {
+        removeContainer()
+    }
+
+    private fun removeContainer() {
+        (parent as? android.view.ViewGroup)?.removeView(this)
+        Toast.makeText(context, "Container removed", Toast.LENGTH_SHORT).show()
     }
 
     private fun createTextView() {
         currentTextView = TextView(context).apply {
             text = currentText
             textSize = currentTextSize
-            setPadding(dpToPx(16), dpToPx(16), dpToPx(16), dpToPx(16))
+            setPadding(dpToPx(8), dpToPx(8), dpToPx(8), dpToPx(8))
             setTextColor(currentTextColor)
             setBackgroundColor(currentBackgroundColor)
-            gravity = android.view.Gravity.START or android.view.Gravity.TOP
+            gravity = Gravity.START or Gravity.TOP
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT
+            )
+            visibility = View.VISIBLE
         }
-        setContent(currentTextView!!)
+
+        contentContainer?.let { container ->
+            container.removeAllViews()
+            container.addView(currentTextView)
+        }
+
+        post {
+            requestLayout()
+        }
+
+        android.util.Log.d("ContainerText", "TextView added, child count: $childCount")
     }
 
-    private fun showEditDialog() {
-        val editText = EditText(context).apply {
+    private fun enterEditMode() {
+        if (isEditing) return
+        isEditing = true
+
+        editTextView = EditText(context).apply {
             setText(currentText)
-            setPadding(dpToPx(16), dpToPx(16), dpToPx(16), dpToPx(16))
+            textSize = currentTextSize
+            setTextColor(currentTextColor)
+            setBackgroundColor(currentBackgroundColor)
+            setPadding(dpToPx(8), dpToPx(8), dpToPx(8), dpToPx(8))
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT
+            )
         }
 
-        AlertDialog.Builder(context)
-            .setTitle("Edit Text")
-            .setView(editText)
-            .setPositiveButton("Save") { _, _ ->
-                currentText = editText.text.toString()
-                updateTextContent()
-                android.widget.Toast.makeText(context, "Text updated", android.widget.Toast.LENGTH_SHORT).show()
-            }
-            .setNegativeButton("Cancel", null)
-            .show()
+        contentContainer?.removeAllViews()
+        contentContainer?.addView(editTextView)
+
+        updateButtonVisibility()
     }
 
-    private fun showTextMenu() {
-        val options = arrayOf(
-            "Change Font Size",
-            "Change Text Color",
-            "Change Background",
-            "Text Alignment",
-            "Reset to Default"
-        )
+    private fun saveEdit() {
+        if (!isEditing || editTextView == null) return
 
-        AlertDialog.Builder(context)
-            .setTitle("Text Options")
-            .setItems(options) { _, which ->
-                when (which) {
-                    0 -> showFontSizeDialog()
-                    1 -> showTextColorDialog()
-                    2 -> showBackgroundColorDialog()
-                    3 -> showTextAlignmentDialog()
-                    4 -> resetToDefault()
-                }
-            }
-            .show()
-    }
-
-    private fun showFontSizeDialog() {
-        val sizes = arrayOf("Small (12sp)", "Medium (14sp)", "Large (18sp)", "Extra Large (24sp)", "Huge (32sp)")
-        val sizeValues = arrayOf(12f, 14f, 18f, 24f, 32f)
-
-        val currentIndex = when (currentTextSize) {
-            12f -> 0
-            14f -> 1
-            18f -> 2
-            24f -> 3
-            32f -> 4
-            else -> 1
+        val newText = editTextView!!.text.toString()
+        if (newText != currentText) {
+            undoStack.add(currentText)
+            redoStack.clear()
+            currentText = newText
         }
 
-        AlertDialog.Builder(context)
-            .setTitle("Select Font Size")
-            .setSingleChoiceItems(sizes, currentIndex) { dialog, which ->
-                currentTextSize = sizeValues[which]
-                updateTextContent()
-                android.widget.Toast.makeText(context, "Font size: ${sizes[which]}", android.widget.Toast.LENGTH_SHORT).show()
-                dialog.dismiss()
-            }
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showTextColorDialog() {
-        val colors = arrayOf("Black", "Dark Gray", "Red", "Blue", "Green", "Purple", "Orange")
-        val colorValues = arrayOf(
-            Color.BLACK,
-            Color.DKGRAY,
-            Color.RED,
-            Color.BLUE,
-            Color.parseColor("#008000"), // Green
-            Color.parseColor("#800080"), // Purple
-            Color.parseColor("#FFA500")  // Orange
-        )
-
-        AlertDialog.Builder(context)
-            .setTitle("Select Text Color")
-            .setItems(colors) { _, which ->
-                currentTextColor = colorValues[which]
-                updateTextContent()
-                android.widget.Toast.makeText(context, "Text color: ${colors[which]}", android.widget.Toast.LENGTH_SHORT).show()
-            }
-            .show()
-    }
-
-    private fun showBackgroundColorDialog() {
-        val backgrounds = arrayOf("White", "Light Gray", "Light Blue", "Light Green", "Light Yellow", "Transparent")
-        val backgroundValues = arrayOf(
-            Color.WHITE,
-            Color.parseColor("#F0F0F0"),
-            Color.parseColor("#E3F2FD"),
-            Color.parseColor("#E8F5E8"),
-            Color.parseColor("#FFFDE7"),
-            Color.TRANSPARENT
-        )
-
-        AlertDialog.Builder(context)
-            .setTitle("Select Background")
-            .setItems(backgrounds) { _, which ->
-                currentBackgroundColor = backgroundValues[which]
-                updateTextContent()
-                android.widget.Toast.makeText(context, "Background: ${backgrounds[which]}", android.widget.Toast.LENGTH_SHORT).show()
-            }
-            .show()
-    }
-
-    private fun showTextAlignmentDialog() {
-        val alignments = arrayOf("Left", "Center", "Right")
-        val alignmentValues = arrayOf(
-            android.view.Gravity.START or android.view.Gravity.TOP,
-            android.view.Gravity.CENTER,
-            android.view.Gravity.END or android.view.Gravity.TOP
-        )
-
-        AlertDialog.Builder(context)
-            .setTitle("Select Text Alignment")
-            .setItems(alignments) { _, which ->
-                currentTextView?.gravity = alignmentValues[which]
-                android.widget.Toast.makeText(context, "Alignment: ${alignments[which]}", android.widget.Toast.LENGTH_SHORT).show()
-            }
-            .show()
-    }
-
-    private fun resetToDefault() {
-        currentText = "Sample Text Container\n\nClick edit to modify this text."
-        currentTextSize = 14f
-        currentTextColor = Color.BLACK
-        currentBackgroundColor = Color.parseColor("#F0F0F0")
         updateTextContent()
-        android.widget.Toast.makeText(context, "Reset to default", android.widget.Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, "Changes saved", Toast.LENGTH_SHORT).show()
+        exitEditMode()
+    }
+
+    private fun cancelEdit() {
+        if (!isEditing) return
+        Toast.makeText(context, "Edit cancelled", Toast.LENGTH_SHORT).show()
+        exitEditMode()
+    }
+
+    private fun undo() {
+        if (undoStack.isNotEmpty()) {
+            redoStack.add(currentText)
+            currentText = undoStack.removeLast()
+            updateTextContent()
+            Toast.makeText(context, "Undo applied", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun redo() {
+        if (redoStack.isNotEmpty()) {
+            undoStack.add(currentText)
+            currentText = redoStack.removeLast()
+            updateTextContent()
+            Toast.makeText(context, "Redo applied", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun exitEditMode() {
+        isEditing = false
+        contentContainer?.removeAllViews()
+        contentContainer?.addView(currentTextView)
+
+        updateButtonVisibility()
     }
 
     private fun updateTextContent() {
@@ -208,9 +355,34 @@ class ContainerText @JvmOverloads constructor(
             setTextColor(currentTextColor)
             setBackgroundColor(currentBackgroundColor)
         }
+        currentTextView?.requestLayout()
+        contentContainer?.requestLayout()
+        mainContainer?.requestLayout()
+        requestLayout()
     }
 
-    // Text-specific methods
+    override fun getCustomSaveData(): Map<String, Any> {
+        val baseData = super.getCustomSaveData().toMutableMap()
+        baseData.putAll(
+            mapOf(
+                "text" to currentText,
+                "textSize" to currentTextSize,
+                "textColor" to currentTextColor,
+                "backgroundColor" to currentBackgroundColor
+            )
+        )
+        return baseData
+    }
+
+    override fun loadCustomSaveData(data: Map<String, Any>) {
+        super.loadCustomSaveData(data)
+        (data["text"] as? String)?.let { currentText = it }
+        (data["textSize"] as? Double)?.let { currentTextSize = it.toFloat() }
+        (data["textColor"] as? Int)?.let { currentTextColor = it }
+        (data["backgroundColor"] as? Int)?.let { currentBackgroundColor = it }
+        updateTextContent()
+    }
+
     fun setText(text: String) {
         currentText = text
         updateTextContent()
@@ -233,41 +405,19 @@ class ContainerText @JvmOverloads constructor(
         updateTextContent()
     }
 
-    override fun getDefaultText(): String {
-        return currentText
+    override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
+        super.onLayout(changed, left, top, right, bottom)
+        if (changed) {
+            post {
+                requestLayout()
+            }
+        }
     }
 
-    override fun getCustomSaveData(): Map<String, Any> {
-        val baseData = super.getCustomSaveData().toMutableMap()
-        baseData.putAll(mapOf(
-            "text" to currentText,
-            "textSize" to currentTextSize,
-            "textColor" to currentTextColor,
-            "backgroundColor" to currentBackgroundColor
-        ))
-        return baseData
-    }
-
-    override fun loadCustomSaveData(data: Map<String, Any>) {
-        super.loadCustomSaveData(data)
-
-        data["text"]?.let {
-            if (it is String) currentText = it
-        }
-        data["textSize"]?.let {
-            if (it is Float) currentTextSize = it
-            else if (it is Double) currentTextSize = it.toFloat()
-        }
-        data["textColor"]?.let {
-            if (it is Int) currentTextColor = it
-        }
-        data["backgroundColor"]?.let {
-            if (it is Int) currentBackgroundColor = it
-        }
-
-        // Update the text view if it exists
-        if (currentTextView != null) {
-            updateTextContent()
+    override fun addView(child: View?, index: Int) {
+        super.addView(child, index)
+        post {
+            requestLayout()
         }
     }
 }
