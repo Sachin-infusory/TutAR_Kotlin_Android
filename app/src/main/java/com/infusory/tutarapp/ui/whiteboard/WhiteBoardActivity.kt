@@ -687,6 +687,7 @@ class WhiteboardActivity : AppCompatActivity() {
         grantResults: IntArray
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+
         when (requestCode) {
             CameraManager.CAMERA_PERMISSION_REQUEST_CODE -> {
                 if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
@@ -934,18 +935,23 @@ class WhiteboardActivity : AppCompatActivity() {
             val layoutParams = RelativeLayout.LayoutParams(width, height)
             containerText.layoutParams = layoutParams
             containerText.elevation = 50f
+
+
+            // Position the container with offset based on existing containers
             val offsetX = containerManager.getContainerCount() * 60f + 100f
             val offsetY = containerManager.getContainerCount() * 60f + 150f
             containerText.moveContainerTo(offsetX, offsetY, animate = true)
             containerText.onRemoveRequest = {
                 containerManager.removeContainer(containerText)
             }
+            // Add to main layout
             mainLayout.addView(containerText)
+            // Initialize content
             containerText.initializeContent()
+            // Bring annotation tool to front
             annotationTool?.bringToFront()
             Toast.makeText(this, "Text added to canvas", Toast.LENGTH_SHORT).show()
         } catch (e: Exception) {
-            android.util.Log.e("WhiteboardActivity", "Error adding text container", e)
             Toast.makeText(this, "Error adding text: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
