@@ -702,6 +702,7 @@ class WhiteboardActivity : AppCompatActivity() {
             // Set elevation to ensure containers are above camera but below annotation
             containerText.elevation = 50f
 
+
             // Position the container with offset based on existing containers
             val offsetX = containerManager.getContainerCount() * 60f + 100f
             val offsetY = containerManager.getContainerCount() * 60f + 150f
@@ -711,19 +712,15 @@ class WhiteboardActivity : AppCompatActivity() {
             containerText.onRemoveRequest = {
                 containerManager.removeContainer(containerText)
             }
-
             // Add to main layout
             mainLayout.addView(containerText)
-
             // Initialize content
             containerText.initializeContent()
-
             // Bring annotation tool to front
             annotationTool?.bringToFront()
 
             Toast.makeText(this, "Text added to canvas", Toast.LENGTH_SHORT).show()
         } catch (e: Exception) {
-            android.util.Log.e("WhiteboardActivity", "Error adding text container", e)
             Toast.makeText(this, "Error adding text: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
