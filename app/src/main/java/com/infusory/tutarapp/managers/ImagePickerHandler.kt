@@ -1,3 +1,4 @@
+// ImagePickerHandler.kt
 package com.infusory.tutarapp.managers
 
 import android.Manifest
@@ -17,8 +18,9 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import com.infusory.tutarapp.ui.components.containers.ContainerImage
-import com.infusory.tutarapp.ui.components.containers.ContainerPdf
+import com.infusory.tutarapp.ui.containers.UnifiedContainer
+import com.infusory.tutarapp.ui.containers.ImageContentBehavior
+import com.infusory.tutarapp.ui.containers.PdfContentBehavior
 import java.io.InputStream
 
 class ImagePickerHandler(
@@ -38,6 +40,9 @@ class ImagePickerHandler(
     }
 
     private var pendingAction: (() -> Unit)? = null
+
+    // Store references to containers and their behaviors for cleanup
+    private val containerBehaviors = mutableMapOf<UnifiedContainer, Any>()
 
     fun pickBackgroundImage() {
         if (checkAndRequestPermissions()) {
@@ -160,6 +165,12 @@ class ImagePickerHandler(
             val bitmap = loadBitmapFromUri(imageUri)
             val drawable = BitmapDrawable(activity.resources, bitmap)
             surfaceView.background = drawable
+
+            Toast.makeText(
+                activity,
+                "Background image set",
+                Toast.LENGTH_SHORT
+            ).show()
         } catch (e: Exception) {
             e.printStackTrace()
             Toast.makeText(
@@ -173,39 +184,44 @@ class ImagePickerHandler(
     private fun setContainerImage(imageUri: Uri) {
         try {
             val bitmap = loadBitmapFromUri(imageUri)
+            val path = imageUri.toString()
 
-            // Calculate appropriate container dimensions based on image size
-            val (containerWidth, containerHeight) = calculateContainerDimensions(
-                bitmap.width,
-                bitmap.height
-            )
-
-            // Create a new ContainerImage with the selected image
-            val imageContainer = ContainerImage(activity).apply {
-                tag = "lesson_image_${System.currentTimeMillis()}" // Unique tag for each image
-                layoutParams = RelativeLayout.LayoutParams(
-                    containerWidth,
-                    containerHeight
-                )
-
-                // Set up the removal callback
-                onRemoveRequest = {
-                    // Remove this container from the parent layout
-                    mainLayout.removeView(this)
-                    Toast.makeText(
-                        activity,
-                        "Image container removed",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                }
+            // Create UnifiedContainer
+            val container = UnifiedContainer(activity).apply {
+                tag = "lesson_image_${System.currentTimeMillis()}"
             }
 
-            // Add container to layout
-            mainLayout.addView(imageContainer)
-            imageContainer.initializeContent()
+            // Create ImageContentBehavior
+            val imageBehavior = ImageContentBehavior(activity)
 
-            // Set the selected image
-            imageContainer.setImage(bitmap, imageUri.toString())
+            // Attach behavior to container
+            imageBehavior.onAttached(container)
+
+            // Set the image (this will automatically size the container)
+            imageBehavior.setImage(bitmap, path)
+
+            // Store behavior reference for cleanup
+            containerBehaviors[container] = imageBehavior
+
+            // Set close callback
+            container.onCloseClicked = {
+                removeContainer(container, imageBehavior)
+            }
+
+            // IMPORTANT: Get the size AFTER setting the image
+            val (width, height) = container.getCurrentSize()
+
+            // Set proper layout params for RelativeLayout
+            val layoutParams = RelativeLayout.LayoutParams(width, height)
+            container.layoutParams = layoutParams
+
+            // Add container to layout
+            mainLayout.addView(container)
+
+            // Position container AFTER adding to layout
+            container.post {
+                container.moveTo(100f, 100f)
+            }
 
             Toast.makeText(
                 activity,
@@ -214,7 +230,7 @@ class ImagePickerHandler(
             ).show()
 
         } catch (e: Exception) {
-            e.printStackTrace() // Log the full stack trace for debugging
+            e.printStackTrace()
             Toast.makeText(
                 activity,
                 "Failed to load image into container: ${e.message}",
@@ -225,32 +241,50 @@ class ImagePickerHandler(
 
     private fun setContainerPdf(pdfUri: Uri) {
         try {
-            // Create a new ContainerPdf with the selected PDF
-            val pdfContainer = ContainerPdf(activity).apply {
-                tag = "lesson_pdf_${System.currentTimeMillis()}" // Unique tag for each PDF
-                layoutParams = RelativeLayout.LayoutParams(
-                    getDefaultWidth(),
-                    getDefaultHeight()
-                )
-
-                // Set up the removal callback
-                onRemoveRequest = {
-                    // Remove this container from the parent layout
-                    mainLayout.removeView(this)
-                    Toast.makeText(
-                        activity,
-                        "PDF container removed",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                }
+            // Create UnifiedContainer
+            val container = UnifiedContainer(activity).apply {
+                tag = "lesson_pdf_${System.currentTimeMillis()}"
             }
 
-            // Add container to layout
-            mainLayout.addView(pdfContainer)
-            pdfContainer.initializeContent()
+            // Create PdfContentBehavior (you'll need to create this similar to ImageContentBehavior)
+            val pdfBehavior = PdfContentBehavior(activity)
 
-            // Set the selected PDF
-            pdfContainer.setPdfFromUri(pdfUri)
+            // Attach behavior to container
+            pdfBehavior.onAttached(container)
+
+            // Load the PDF
+            pdfBehavior.loadPdf(pdfUri)
+
+            // Store behavior reference for cleanup
+            containerBehaviors[container] = pdfBehavior
+
+            // Set close callback
+            container.onCloseClicked = {
+                removeContainer(container, pdfBehavior)
+            }
+
+            // Set default PDF container size
+            val density = activity.resources.displayMetrics.density
+            val defaultWidth = (400 * density).toInt()
+            val defaultHeight = (500 * density).toInt()
+            container.setContainerSize(defaultWidth, defaultHeight)
+
+            // Add container to layout
+            val layoutParams = RelativeLayout.LayoutParams(
+                RelativeLayout.LayoutParams.WRAP_CONTENT,
+                RelativeLayout.LayoutParams.WRAP_CONTENT
+            )
+            container.layoutParams = layoutParams
+            mainLayout.addView(container)
+
+            // Position container
+            container.moveTo(150f, 150f)
+
+            Toast.makeText(
+                activity,
+                "PDF loaded successfully",
+                Toast.LENGTH_SHORT
+            ).show()
 
         } catch (e: Exception) {
             e.printStackTrace()
@@ -260,6 +294,29 @@ class ImagePickerHandler(
                 Toast.LENGTH_SHORT
             ).show()
         }
+    }
+
+    /**
+     * Remove a container and cleanup its behavior
+     */
+    private fun removeContainer(container: UnifiedContainer, behavior: Any) {
+        // Detach behavior to cleanup resources
+        when (behavior) {
+            is ImageContentBehavior -> behavior.onDetached()
+            is PdfContentBehavior -> behavior.onDetached()
+        }
+
+        // Remove from tracking
+        containerBehaviors.remove(container)
+
+        // Remove from layout
+        mainLayout.removeView(container)
+
+        Toast.makeText(
+            activity,
+            "Container removed",
+            Toast.LENGTH_SHORT
+        ).show()
     }
 
     /**
@@ -281,33 +338,116 @@ class ImagePickerHandler(
     }
 
     /**
-     * Calculate container dimensions that fit the image while respecting maximum size constraints
-     * and maintaining aspect ratio
+     * Cleanup all containers when activity is destroyed
      */
-    private fun calculateContainerDimensions(imageWidth: Int, imageHeight: Int): Pair<Int, Int> {
-        // Convert max dimensions from dp to pixels
-        val density = activity.resources.displayMetrics.density
-        val maxWidth = (MAX_CONTAINER_WIDTH * density).toInt()
-        val maxHeight = (MAX_CONTAINER_HEIGHT * density).toInt()
+    fun cleanup() {
+        containerBehaviors.forEach { (container, behavior) ->
+            when (behavior) {
+                is ImageContentBehavior -> behavior.onDetached()
+                is PdfContentBehavior -> behavior.onDetached()
+            }
+            mainLayout.removeView(container)
+        }
+        containerBehaviors.clear()
+    }
 
-        var finalWidth = imageWidth
-        var finalHeight = imageHeight
+    /**
+     * Save state of all containers
+     */
+    fun saveContainersState(): List<ContainerStateData> {
+        val states = mutableListOf<ContainerStateData>()
 
-        // Scale down if image is too large, maintaining aspect ratio
-        if (imageWidth > maxWidth || imageHeight > maxHeight) {
-            val widthRatio = maxWidth.toFloat() / imageWidth
-            val heightRatio = maxHeight.toFloat() / imageHeight
-            val scaleFactor = minOf(widthRatio, heightRatio)
+        containerBehaviors.forEach { (container, behavior) ->
+            val containerState = container.saveState()
+            val behaviorState = when (behavior) {
+                is ImageContentBehavior -> behavior.saveState()
+                is PdfContentBehavior -> behavior.saveState()
+                else -> emptyMap()
+            }
 
-            finalWidth = (imageWidth * scaleFactor).toInt()
-            finalHeight = (imageHeight * scaleFactor).toInt()
+            states.add(
+                ContainerStateData(
+                    type = when (behavior) {
+                        is ImageContentBehavior -> "image"
+                        is PdfContentBehavior -> "pdf"
+                        else -> "unknown"
+                    },
+                    containerState = containerState,
+                    behaviorState = behaviorState
+                )
+            )
         }
 
-        // Ensure minimum size for usability
-        val minSize = (100 * density).toInt()
-        finalWidth = maxOf(finalWidth, minSize)
-        finalHeight = maxOf(finalHeight, minSize)
-
-        return Pair(finalWidth, finalHeight)
+        return states
     }
+
+    /**
+     * Restore containers from saved state
+     */
+    fun restoreContainersState(states: List<ContainerStateData>) {
+        states.forEach { stateData ->
+            try {
+                when (stateData.type) {
+                    "image" -> restoreImageContainer(stateData)
+//                    "pdf" -> restorePdfContainer(stateData)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                android.util.Log.e("ImagePickerHandler", "Failed to restore container", e)
+            }
+        }
+    }
+
+    private fun restoreImageContainer(stateData: ContainerStateData) {
+        val container = UnifiedContainer(activity)
+        val imageBehavior = ImageContentBehavior(activity)
+
+        imageBehavior.onAttached(container)
+        container.restoreState(stateData.containerState)
+        imageBehavior.restoreState(stateData.behaviorState)
+
+        containerBehaviors[container] = imageBehavior
+
+        container.onCloseClicked = {
+            removeContainer(container, imageBehavior)
+        }
+
+        val layoutParams = RelativeLayout.LayoutParams(
+            RelativeLayout.LayoutParams.WRAP_CONTENT,
+            RelativeLayout.LayoutParams.WRAP_CONTENT
+        )
+        container.layoutParams = layoutParams
+        mainLayout.addView(container)
+    }
+
+//    private fun restorePdfContainer(stateData: ContainerStateData) {
+//        val container = UnifiedContainer(activity)
+////        val pdfBehavior = PdfContentBehavior(activity)
+//
+//        pdfBehavior.onAttached(container)
+//        container.restoreState(stateData.containerState)
+//        pdfBehavior.restoreState(stateData.behaviorState)
+//
+//        containerBehaviors[container] = pdfBehavior
+//
+//        container.onCloseClicked = {
+//            removeContainer(container, pdfBehavior)
+//        }
+//
+//        val layoutParams = RelativeLayout.LayoutParams(
+//            RelativeLayout.LayoutParams.WRAP_CONTENT,
+//            RelativeLayout.LayoutParams.WRAP_CONTENT
+//        )
+//        container.layoutParams = layoutParams
+//        mainLayout.addView(container)
+//    }
+
+    /**
+     * Data class for saving container state
+     */
+    data class ContainerStateData(
+        val type: String,
+        val containerState: UnifiedContainer.ContainerState,
+        val behaviorState: Map<String, Any>
+    )
 }
