@@ -31,14 +31,20 @@ import com.infusory.tutarapp.managers.WhiteboardStateManager
 import com.infusory.tutarapp.ui.components.containers.Container3D
 import com.infusory.tutarapp.ui.dialogs.SettingsPopup
 import android.app.Dialog
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.view.ViewGroup
 import android.widget.RelativeLayout
 import com.infusory.tutarapp.ui.ai.DrawView
 import com.infusory.tutarapp.ui.ai.ScreenAnalyzerView
+import com.infusory.tutarapp.ui.containers.UnifiedContainer
+import com.infusory.tutarapp.ui.containers.ImageContentBehavior
+import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import android.util.Base64
 
 enum class ActionType {
     SAVE, INSERT
@@ -184,7 +190,10 @@ class WhiteboardActivity : AppCompatActivity() {
     }
 
     private fun setupAiMaster() {
-        aiMasterDrawer = AiMasterDrawer(this) { response ->
+        Log.e("WhiteboardActivity", "setupAiMaster: Starting")
+        val backgroundColor = getMainLayoutBackgroundColor()
+        Log.e("WhiteboardActivity", "setupAiMaster: Background color: #${String.format("%08X", backgroundColor)}")
+        aiMasterDrawer = AiMasterDrawer(this, backgroundColor) { response ->
             handleAiMasterResponse(response)
         }
     }
@@ -422,34 +431,23 @@ class WhiteboardActivity : AppCompatActivity() {
     }
 
     private fun startScreenAnalysis() {
-        android.util.Log.d("WhiteboardActivity", "Starting Screen Analysis")
 
-        // Pause 3D rendering for better capture
         pauseAll3DRenderingForDrawing()
-
-        // Force layout update
         mainLayout.requestLayout()
         mainLayout.invalidate()
 
-        // Small delay to ensure everything is rendered
         mainLayout.postDelayed({
             val dialog = Dialog(this, android.R.style.Theme_Translucent_NoTitleBar_Fullscreen)
 
             val analyzerView = ScreenAnalyzerView(this, mainLayout) { bitmap ->
-                android.util.Log.d("WhiteboardActivity", "ScreenAnalyzerView callback received")
 
                 dialog.dismiss()
                 resumeAll3DRenderingAfterDrawing()
                 deactivateButtonsByKey("analyze_screen")
 
                 if (bitmap != null) {
-                    android.util.Log.d(
-                        "WhiteboardActivity",
-                        "Full screen bitmap captured: ${bitmap.width}x${bitmap.height}"
-                    )
                     performFullScreenAnalysis(bitmap)
                 } else {
-                    android.util.Log.e("WhiteboardActivity", "Bitmap is null")
                     Toast.makeText(
                         this,
                         "Failed to capture screenshot",
@@ -458,7 +456,6 @@ class WhiteboardActivity : AppCompatActivity() {
                 }
             }
 
-            // Set layout params to match parent
             val layoutParams = ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT
@@ -467,7 +464,6 @@ class WhiteboardActivity : AppCompatActivity() {
 
             dialog.setContentView(analyzerView)
 
-            // Configure window to fill entire screen including system bars
             dialog.window?.apply {
                 setLayout(
                     ViewGroup.LayoutParams.MATCH_PARENT,
@@ -475,9 +471,7 @@ class WhiteboardActivity : AppCompatActivity() {
                 )
                 setBackgroundDrawableResource(android.R.color.transparent)
 
-                // Make it truly fullscreen - draw over system bars
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    // Android 11+
                     setDecorFitsSystemWindows(false)
                     insetsController?.apply {
                         hide(android.view.WindowInsets.Type.systemBars())
@@ -485,7 +479,6 @@ class WhiteboardActivity : AppCompatActivity() {
                             android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
                     }
                 } else {
-                    // Android 10 and below
                     @Suppress("DEPRECATION")
                     decorView.systemUiVisibility = (
                             View.SYSTEM_UI_FLAG_LAYOUT_STABLE
@@ -506,117 +499,26 @@ class WhiteboardActivity : AppCompatActivity() {
             }
 
             dialog.show()
-
-            // Start the animation immediately after showing the dialog
             analyzerView.startAnalysis()
-        }, 150) // Give time for layout to settle
+        }, 150)
     }
 
     private fun performFullScreenAnalysis(bitmap: Bitmap) {
-
-        // Save the bitmap to the gallery
-        saveBitmapToGallery(bitmap, "ScreenAnalysis")
-        // TODO: Implement API call to analyze the full screen bitmap
+        performSearch(bitmap)
+        Toast.makeText(
+            this,
+            "Full screen captured and saved. Ready for AI analysis.",
+            Toast.LENGTH_SHORT
+        ).show()
     }
-
-//    private fun startCircleToSearch() {
-//        android.util.Log.d("WhiteboardActivity", "Starting Circle to Search")
-//
-//        // Pause 3D rendering for better capture
-//        pauseAll3DRenderingForDrawing()
-//
-//        // Force layout update
-//        mainLayout.requestLayout()
-//        mainLayout.invalidate()
-//
-//        // Small delay to ensure everything is rendered
-//        mainLayout.postDelayed({
-//            val dialog = Dialog(this, android.R.style.Theme_Translucent_NoTitleBar_Fullscreen)
-//
-//            val drawView = DrawView(this, mainLayout) { bitmap ->
-//                android.util.Log.d("WhiteboardActivity", "DrawView callback received")
-//
-//                dialog.dismiss()
-//                resumeAll3DRenderingAfterDrawing()
-//                deactivateButtonsByKey("circle_search")
-//
-//                if (bitmap != null) {
-//                    android.util.Log.d(
-//                        "WhiteboardActivity",
-//                        "Bitmap captured: ${bitmap.width}x${bitmap.height}"
-//                    )
-//                } else {
-//                    android.util.Log.e("WhiteboardActivity", "Bitmap is null")
-//                    Toast.makeText(
-//                        this,
-//                        "Failed to capture screenshot",
-//                        Toast.LENGTH_SHORT
-//                    ).show()
-//                }
-//            }
-//
-//            // Set layout params to match parent
-//            val layoutParams = ViewGroup.LayoutParams(
-//                ViewGroup.LayoutParams.MATCH_PARENT,
-//                ViewGroup.LayoutParams.MATCH_PARENT
-//            )
-//            drawView.layoutParams = layoutParams
-//
-//            dialog.setContentView(drawView)
-//
-//            // Configure window to fill entire screen including system bars
-//            dialog.window?.apply {
-//                setLayout(
-//                    ViewGroup.LayoutParams.MATCH_PARENT,
-//                    ViewGroup.LayoutParams.MATCH_PARENT
-//                )
-//                setBackgroundDrawableResource(android.R.color.transparent)
-//
-//                // Make it truly fullscreen - draw over system bars
-//                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-//                    // Android 11+
-//                    setDecorFitsSystemWindows(false)
-//                    insetsController?.apply {
-//                        hide(android.view.WindowInsets.Type.systemBars())
-//                        systemBarsBehavior =
-//                            android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-//                    }
-//                } else {
-//                    // Android 10 and below
-//                    @Suppress("DEPRECATION")
-//                    decorView.systemUiVisibility = (
-//                            View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-//                                    or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-//                                    or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-//                                    or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-//                                    or View.SYSTEM_UI_FLAG_FULLSCREEN
-//                                    or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-//                            )
-//                }
-//            }
-//
-//            dialog.setOnCancelListener {
-//                android.util.Log.d("WhiteboardActivity", "Circle to Search cancelled")
-//                drawView.reset()
-//                resumeAll3DRenderingAfterDrawing()
-//                deactivateButtonsByKey("circle_search")
-//            }
-//
-//            dialog.show()
-//        }, 150) // Give time for layout to settle
-//    }
 
     private fun startCircleToSearch() {
         android.util.Log.d("WhiteboardActivity", "Starting Circle to Search")
 
-        // Pause 3D rendering for better capture
         pauseAll3DRenderingForDrawing()
-
-        // Force layout update
         mainLayout.requestLayout()
         mainLayout.invalidate()
 
-        // Small delay to ensure everything is rendered
         mainLayout.postDelayed({
             val dialog = Dialog(this, android.R.style.Theme_Translucent_NoTitleBar_Fullscreen)
 
@@ -632,8 +534,7 @@ class WhiteboardActivity : AppCompatActivity() {
                         "WhiteboardActivity",
                         "Bitmap captured: ${bitmap.width}x${bitmap.height}"
                     )
-                    // ✅ CHANGED: Convert to base64 and send directly to AI Master
-                    convertBitmapToBase64AndSearch(bitmap)
+                    performSearch(bitmap)
                 } else {
                     android.util.Log.e("WhiteboardActivity", "Bitmap is null")
                     Toast.makeText(
@@ -644,7 +545,6 @@ class WhiteboardActivity : AppCompatActivity() {
                 }
             }
 
-            // ... rest of the dialog setup code remains the same ...
             val layoutParams = ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT
@@ -691,32 +591,6 @@ class WhiteboardActivity : AppCompatActivity() {
         }, 150)
     }
 
-    // ✅ NEW FUNCTION: Convert bitmap to base64 and trigger search
-    private fun convertBitmapToBase64AndSearch(bitmap: Bitmap) {
-        try {
-            // Convert bitmap to Base64
-            val byteArrayOutputStream = java.io.ByteArrayOutputStream()
-            bitmap.compress(Bitmap.CompressFormat.PNG, 100, byteArrayOutputStream)
-            val byteArray = byteArrayOutputStream.toByteArray()
-            val base64Image = android.util.Base64.encodeToString(byteArray, android.util.Base64.NO_WRAP)
-
-            Log.d("WhiteboardActivity", "Base64 image created, length: ${base64Image.length}")
-
-            // ✅ Call the AI Master to perform image search
-            aiMasterDrawer?.let {
-                it.performImageSearchDirectly(base64Image)
-                Toast.makeText(this, "Analyzing image...", Toast.LENGTH_SHORT).show()
-            } ?: run {
-                Toast.makeText(this, "AI Master not initialized", Toast.LENGTH_SHORT).show()
-            }
-        } catch (e: Exception) {
-            Log.e("WhiteboardActivity", "Error converting bitmap to base64", e)
-            Toast.makeText(this, "Error processing image: ${e.message}", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-// ✅ REMOVE OR COMMENT OUT: Old performSearch function (no longer needed)
-// private fun performSearch(bitmap: Bitmap) { ... }
 
     private fun saveBitmapToGallery(bitmap: Bitmap, prefix: String = "Screenshot") {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
@@ -820,6 +694,11 @@ class WhiteboardActivity : AppCompatActivity() {
                         Toast.LENGTH_LONG
                     ).show()
                 }
+            }
+
+            ImagePickerHandler.PERMISSION_REQUEST_CODE -> {
+                // Delegate to ImagePickerHandler
+                imagePickerHandler.onPermissionResult(requestCode, grantResults)
             }
         }
     }
@@ -934,6 +813,7 @@ class WhiteboardActivity : AppCompatActivity() {
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        // Let ImagePickerHandler handle image/PDF picking results
         imagePickerHandler.handleImagePickResult(requestCode, resultCode, data)
     }
 
@@ -957,6 +837,9 @@ class WhiteboardActivity : AppCompatActivity() {
         aiMasterDrawer?.dismiss()
         settingsPopup?.dismiss()
         settingsPopup = null
+
+        // Cleanup image picker handler
+        imagePickerHandler.cleanup()
     }
 
     override fun onBackPressed() {
@@ -989,6 +872,10 @@ class WhiteboardActivity : AppCompatActivity() {
         }
     }
 
+    /*
+    * Add image container from base64 string (for AI responses)
+    * UPDATED: Uses UnifiedContainer with ImageContentBehavior
+    */
     fun addImageContainerFromBase64(imageBase64: String) {
         try {
             val decodedString = if (imageBase64.contains(",")) {
@@ -999,24 +886,50 @@ class WhiteboardActivity : AppCompatActivity() {
             val decodedByte = android.util.Base64.decode(decodedString, android.util.Base64.DEFAULT)
             val bitmap =
                 android.graphics.BitmapFactory.decodeByteArray(decodedByte, 0, decodedByte.size)
+
             if (bitmap != null) {
-                val containerImage =
-                    com.infusory.tutarapp.ui.components.containers.ContainerImage(this)
-                containerImage.setImage(bitmap, "base64_image_${System.currentTimeMillis()}")
-                val layoutParams = RelativeLayout.LayoutParams(
-                    containerImage.getDefaultWidth(),
-                    containerImage.getDefaultHeight()
-                )
-                containerImage.layoutParams = layoutParams
-                containerImage.elevation = 50f
-                val offsetX = containerManager.getContainerCount() * 60f + 100f
-                val offsetY = containerManager.getContainerCount() * 60f + 200f
-                containerImage.moveContainerTo(offsetX, offsetY, animate = false)
-                containerImage.onRemoveRequest = {
-                    containerManager.removeContainer(containerImage)
+                // Create UnifiedContainer
+                val container = UnifiedContainer(this).apply {
+                    tag = "base64_image_${System.currentTimeMillis()}"
+                    elevation = 50f
                 }
-                mainLayout.addView(containerImage)
-                containerImage.initializeContent()
+
+                // Create ImageContentBehavior
+                val imageBehavior = ImageContentBehavior(this)
+
+                // Attach behavior to container
+                imageBehavior.onAttached(container)
+
+                // Set the image
+                val path = "base64_image_${System.currentTimeMillis()}"
+                imageBehavior.setImage(bitmap, path)
+
+                // Set close callback
+                container.onCloseClicked = {
+                    imageBehavior.onDetached()
+                    mainLayout.removeView(container)
+                }
+
+                // IMPORTANT: Get the size AFTER setting the image
+                val (width, height) = container.getCurrentSize()
+
+                // Set proper layout params
+                val layoutParams = RelativeLayout.LayoutParams(width, height)
+                container.layoutParams = layoutParams
+
+                // Add to layout
+                mainLayout.addView(container)
+
+                // Position with offset AFTER adding to layout
+                container.post {
+                    val offsetX = containerManager.getContainerCount() * 60f + 100f
+                    val offsetY = containerManager.getContainerCount() * 60f + 200f
+                    container.moveTo(offsetX, offsetY, animate = false)
+                }
+
+                // Bring annotation tool to front
+                annotationTool?.bringToFront()
+
                 Toast.makeText(this, "Image added to canvas", Toast.LENGTH_SHORT).show()
             } else {
                 Toast.makeText(this, "Failed to decode image", Toast.LENGTH_SHORT).show()
@@ -1027,6 +940,9 @@ class WhiteboardActivity : AppCompatActivity() {
         }
     }
 
+    /*
+    * Add YouTube container with URL
+    */
     fun addYouTubeContainerWithUrl(youtubeUrl: String) {
         try {
             val youtubeContainer = containerManager.addYouTubeContainer()
@@ -1041,6 +957,9 @@ class WhiteboardActivity : AppCompatActivity() {
         }
     }
 
+    /*
+    * Add text container with content
+    */
     fun addTextContainerWithContent(text: String, title: String = "") {
         try {
             val containerText = com.infusory.tutarapp.ui.components.containers.ContainerText(this)
@@ -1056,7 +975,6 @@ class WhiteboardActivity : AppCompatActivity() {
             containerText.layoutParams = layoutParams
             containerText.elevation = 50f
 
-
             // Position the container with offset based on existing containers
             val offsetX = containerManager.getContainerCount() * 60f + 100f
             val offsetY = containerManager.getContainerCount() * 60f + 150f
@@ -1064,15 +982,110 @@ class WhiteboardActivity : AppCompatActivity() {
             containerText.onRemoveRequest = {
                 containerManager.removeContainer(containerText)
             }
+
             // Add to main layout
             mainLayout.addView(containerText)
+
             // Initialize content
             containerText.initializeContent()
+
             // Bring annotation tool to front
             annotationTool?.bringToFront()
+
             Toast.makeText(this, "Text added to canvas", Toast.LENGTH_SHORT).show()
         } catch (e: Exception) {
             Toast.makeText(this, "Error adding text: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun performSearch(bitmap: Bitmap) {
+        try {
+            val base64Image = convertBitmapToBase64(bitmap)
+
+            if (base64Image.isNullOrEmpty()) {
+                Toast.makeText(this, "Failed to convert image", Toast.LENGTH_SHORT).show()
+                return
+            }
+            aiMasterDrawer?.let {
+                it.performImageSearchDirectly(base64Image)
+                Toast.makeText(this, "Analyzing new image...", Toast.LENGTH_SHORT).show()
+            } ?: run {
+                Toast.makeText(this, "AI Master not initialized", Toast.LENGTH_SHORT).show()
+            }
+
+        } catch (e: Exception) {
+            Log.e("WhiteboardActivity", "Error converting bitmap to base64", e)
+            Toast.makeText(this, "Error processing image: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /*
+    * Converts a Bitmap to Base64 (without data URI prefix).
+    */
+    private fun convertBitmapToBase64(bitmap: Bitmap): String? {
+        return try {
+            Log.d("WhiteboardActivity", "=== Starting Bitmap to Base64 Conversion ===")
+
+            val outputStream = ByteArrayOutputStream()
+            val format = Bitmap.CompressFormat.PNG
+            val success = bitmap.compress(format, 100, outputStream)
+
+            if (!success) {
+                Log.e("WhiteboardActivity", "❌ Bitmap compression failed")
+                return null
+            }
+
+            val byteArray = outputStream.toByteArray()
+            val sizeKB = byteArray.size / 1024.0
+            Log.d(
+                "WhiteboardActivity",
+                "✅ Compressed to ${String.format("%.2f", sizeKB)} KB (${byteArray.size} bytes)"
+            )
+
+            outputStream.close()
+
+            // Encode to base64
+            val base64 = Base64.encodeToString(byteArray, Base64.NO_WRAP)
+            Log.d("WhiteboardActivity", "✅ Base64 encoded: ${base64.length} characters")
+
+            // Verify it's a valid PNG base64
+            if (base64.startsWith("iVBORw0KGgo")) {
+                Log.d("WhiteboardActivity", "✅ Valid PNG base64 signature confirmed")
+            } else {
+                Log.w("WhiteboardActivity", "⚠️ Unexpected base64 start: ${base64.take(20)}")
+            }
+
+            base64
+        } catch (e: Exception) {
+            Log.e("WhiteboardActivity", "❌ Error in convertBitmapToBase64", e)
+            null
+        }
+    }
+
+    private fun getMainLayoutBackgroundColor(): Int {
+        Log.e("WhiteboardActivity", "getMainLayoutBackgroundColor: Starting")
+        return try {
+            if (mainLayout == null) {
+                Log.e("WhiteboardActivity", "mainLayout is null!")
+                return Color.WHITE
+            }
+            val background = mainLayout.background
+            if (background is ColorDrawable) {
+                val color = background.color
+                Log.e("WhiteboardActivity", "Background color (ColorDrawable): #${String.format("%08X", color)}")
+                color
+            } else {
+                Log.e("WhiteboardActivity", "Background is null or not a ColorDrawable, falling back to theme")
+                val attrs = intArrayOf(android.R.attr.background)
+                val typedArray = theme.obtainStyledAttributes(attrs)
+                val color = typedArray.getColor(0, Color.WHITE)
+                Log.e("WhiteboardActivity", "Theme background color: #${String.format("%08X", color)}")
+                typedArray.recycle()
+                color
+            }
+        } catch (e: Exception) {
+            Log.e("WhiteboardActivity", "Error getting background color", e)
+            Color.WHITE
         }
     }
 }
