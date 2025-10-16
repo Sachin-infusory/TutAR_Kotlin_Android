@@ -31,16 +31,20 @@ import com.infusory.tutarapp.managers.WhiteboardStateManager
 import com.infusory.tutarapp.ui.components.containers.Container3D
 import com.infusory.tutarapp.ui.dialogs.SettingsPopup
 import android.app.Dialog
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.view.ViewGroup
 import android.widget.RelativeLayout
 import com.infusory.tutarapp.ui.ai.DrawView
 import com.infusory.tutarapp.ui.ai.ScreenAnalyzerView
 import com.infusory.tutarapp.ui.containers.UnifiedContainer
 import com.infusory.tutarapp.ui.containers.ImageContentBehavior
+import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import android.util.Base64
 
 enum class ActionType {
     SAVE, INSERT
@@ -186,7 +190,10 @@ class WhiteboardActivity : AppCompatActivity() {
     }
 
     private fun setupAiMaster() {
-        aiMasterDrawer = AiMasterDrawer(this) { response ->
+        Log.e("WhiteboardActivity", "setupAiMaster: Starting")
+        val backgroundColor = getMainLayoutBackgroundColor()
+        Log.e("WhiteboardActivity", "setupAiMaster: Background color: #${String.format("%08X", backgroundColor)}")
+        aiMasterDrawer = AiMasterDrawer(this, backgroundColor) { response ->
             handleAiMasterResponse(response)
         }
     }
@@ -240,9 +247,11 @@ class WhiteboardActivity : AppCompatActivity() {
             "menu" -> {
                 modelBrowserDrawer?.dismiss()
             }
+
             "circle_search" -> {
                 // No specific cleanup needed for now
             }
+
             "analyze_screen" -> {
                 // No specific cleanup needed
             }
@@ -422,7 +431,6 @@ class WhiteboardActivity : AppCompatActivity() {
     }
 
     private fun startScreenAnalysis() {
-        android.util.Log.d("WhiteboardActivity", "Starting Screen Analysis")
 
         pauseAll3DRenderingForDrawing()
         mainLayout.requestLayout()
@@ -432,20 +440,14 @@ class WhiteboardActivity : AppCompatActivity() {
             val dialog = Dialog(this, android.R.style.Theme_Translucent_NoTitleBar_Fullscreen)
 
             val analyzerView = ScreenAnalyzerView(this, mainLayout) { bitmap ->
-                android.util.Log.d("WhiteboardActivity", "ScreenAnalyzerView callback received")
 
                 dialog.dismiss()
                 resumeAll3DRenderingAfterDrawing()
                 deactivateButtonsByKey("analyze_screen")
 
                 if (bitmap != null) {
-                    android.util.Log.d(
-                        "WhiteboardActivity",
-                        "Full screen bitmap captured: ${bitmap.width}x${bitmap.height}"
-                    )
                     performFullScreenAnalysis(bitmap)
                 } else {
-                    android.util.Log.e("WhiteboardActivity", "Bitmap is null")
                     Toast.makeText(
                         this,
                         "Failed to capture screenshot",
@@ -473,7 +475,8 @@ class WhiteboardActivity : AppCompatActivity() {
                     setDecorFitsSystemWindows(false)
                     insetsController?.apply {
                         hide(android.view.WindowInsets.Type.systemBars())
-                        systemBarsBehavior = android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                        systemBarsBehavior =
+                            android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
                     }
                 } else {
                     @Suppress("DEPRECATION")
@@ -501,9 +504,12 @@ class WhiteboardActivity : AppCompatActivity() {
     }
 
     private fun performFullScreenAnalysis(bitmap: Bitmap) {
-        Log.d("WhiteboardActivity", "Captured full screen: width=${bitmap.width}, height=${bitmap.height}, config=${bitmap.config}")
-        saveBitmapToGallery(bitmap, "ScreenAnalysis")
-        Toast.makeText(this, "Full screen captured and saved. Ready for AI analysis.", Toast.LENGTH_SHORT).show()
+        performSearch(bitmap)
+        Toast.makeText(
+            this,
+            "Full screen captured and saved. Ready for AI analysis.",
+            Toast.LENGTH_SHORT
+        ).show()
     }
 
     private fun startCircleToSearch() {
@@ -558,7 +564,8 @@ class WhiteboardActivity : AppCompatActivity() {
                     setDecorFitsSystemWindows(false)
                     insetsController?.apply {
                         hide(android.view.WindowInsets.Type.systemBars())
-                        systemBarsBehavior = android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                        systemBarsBehavior =
+                            android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
                     }
                 } else {
                     @Suppress("DEPRECATION")
@@ -584,11 +591,6 @@ class WhiteboardActivity : AppCompatActivity() {
         }, 150)
     }
 
-    private fun performSearch(bitmap: Bitmap) {
-        Log.d("WhiteboardActivity", "Captured bitmap: width=${bitmap.width}, height=${bitmap.height}, config=${bitmap.config}")
-        saveBitmapToGallery(bitmap)
-        Toast.makeText(this, "Full screenshot saved. Ready for analysis.", Toast.LENGTH_SHORT).show()
-    }
 
     private fun saveBitmapToGallery(bitmap: Bitmap, prefix: String = "Screenshot") {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
@@ -607,7 +609,10 @@ class WhiteboardActivity : AppCompatActivity() {
         }
 
         val contentValues = ContentValues().apply {
-            put(MediaStore.Images.Media.DISPLAY_NAME, "${prefix}_${SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())}.png")
+            put(
+                MediaStore.Images.Media.DISPLAY_NAME,
+                "${prefix}_${SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())}.png"
+            )
             put(MediaStore.Images.Media.MIME_TYPE, "image/png")
             put(MediaStore.Images.Media.DATE_ADDED, System.currentTimeMillis() / 1000)
             put(MediaStore.Images.Media.DATE_TAKEN, System.currentTimeMillis())
@@ -674,13 +679,23 @@ class WhiteboardActivity : AppCompatActivity() {
                     ).show()
                 }
             }
+
             STORAGE_PERMISSION_REQUEST_CODE -> {
                 if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                    Toast.makeText(this, "Storage permission granted. Try saving again.", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(
+                        this,
+                        "Storage permission granted. Try saving again.",
+                        Toast.LENGTH_SHORT
+                    ).show()
                 } else {
-                    Toast.makeText(this, "Storage permission denied. Cannot save image.", Toast.LENGTH_LONG).show()
+                    Toast.makeText(
+                        this,
+                        "Storage permission denied. Cannot save image.",
+                        Toast.LENGTH_LONG
+                    ).show()
                 }
             }
+
             ImagePickerHandler.PERMISSION_REQUEST_CODE -> {
                 // Delegate to ImagePickerHandler
                 imagePickerHandler.onPermissionResult(requestCode, grantResults)
@@ -716,7 +731,8 @@ class WhiteboardActivity : AppCompatActivity() {
             }
         } catch (e: Exception) {
             android.util.Log.e("WhiteboardActivity", "Error handling AI response", e)
-            Toast.makeText(this, "Error processing AI response: ${e.message}", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "Error processing AI response: ${e.message}", Toast.LENGTH_LONG)
+                .show()
         }
     }
 
@@ -762,7 +778,8 @@ class WhiteboardActivity : AppCompatActivity() {
     }
 
     fun pauseAll3DRenderingForDrawing() {
-        val managedContainer3Ds = containerManager.getAllContainers().filterIsInstance<Container3D>()
+        val managedContainer3Ds =
+            containerManager.getAllContainers().filterIsInstance<Container3D>()
         val directContainer3Ds = mutableListOf<Container3D>()
         for (i in 0 until mainLayout.childCount) {
             val child = mainLayout.getChildAt(i)
@@ -778,7 +795,8 @@ class WhiteboardActivity : AppCompatActivity() {
     }
 
     fun resumeAll3DRenderingAfterDrawing() {
-        val managedContainer3Ds = containerManager.getAllContainers().filterIsInstance<Container3D>()
+        val managedContainer3Ds =
+            containerManager.getAllContainers().filterIsInstance<Container3D>()
         val directContainer3Ds = mutableListOf<Container3D>()
         for (i in 0 until mainLayout.childCount) {
             val child = mainLayout.getChildAt(i)
@@ -854,10 +872,10 @@ class WhiteboardActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * Add image container from base64 string (for AI responses)
-     * UPDATED: Uses UnifiedContainer with ImageContentBehavior
-     */
+    /*
+    * Add image container from base64 string (for AI responses)
+    * UPDATED: Uses UnifiedContainer with ImageContentBehavior
+    */
     fun addImageContainerFromBase64(imageBase64: String) {
         try {
             val decodedString = if (imageBase64.contains(",")) {
@@ -866,7 +884,8 @@ class WhiteboardActivity : AppCompatActivity() {
                 imageBase64
             }
             val decodedByte = android.util.Base64.decode(decodedString, android.util.Base64.DEFAULT)
-            val bitmap = android.graphics.BitmapFactory.decodeByteArray(decodedByte, 0, decodedByte.size)
+            val bitmap =
+                android.graphics.BitmapFactory.decodeByteArray(decodedByte, 0, decodedByte.size)
 
             if (bitmap != null) {
                 // Create UnifiedContainer
@@ -921,9 +940,9 @@ class WhiteboardActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * Add YouTube container with URL
-     */
+    /*
+    * Add YouTube container with URL
+    */
     fun addYouTubeContainerWithUrl(youtubeUrl: String) {
         try {
             val youtubeContainer = containerManager.addYouTubeContainer()
@@ -933,13 +952,14 @@ class WhiteboardActivity : AppCompatActivity() {
             }
         } catch (e: Exception) {
             android.util.Log.e("WhiteboardActivity", "Error adding YouTube container", e)
-            Toast.makeText(this, "Error adding YouTube video: ${e.message}", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Error adding YouTube video: ${e.message}", Toast.LENGTH_SHORT)
+                .show()
         }
     }
 
-    /**
-     * Add text container with content
-     */
+    /*
+    * Add text container with content
+    */
     fun addTextContainerWithContent(text: String, title: String = "") {
         try {
             val containerText = com.infusory.tutarapp.ui.components.containers.ContainerText(this)
@@ -975,6 +995,97 @@ class WhiteboardActivity : AppCompatActivity() {
             Toast.makeText(this, "Text added to canvas", Toast.LENGTH_SHORT).show()
         } catch (e: Exception) {
             Toast.makeText(this, "Error adding text: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun performSearch(bitmap: Bitmap) {
+        try {
+            val base64Image = convertBitmapToBase64(bitmap)
+
+            if (base64Image.isNullOrEmpty()) {
+                Toast.makeText(this, "Failed to convert image", Toast.LENGTH_SHORT).show()
+                return
+            }
+            aiMasterDrawer?.let {
+                it.performImageSearchDirectly(base64Image)
+                Toast.makeText(this, "Analyzing new image...", Toast.LENGTH_SHORT).show()
+            } ?: run {
+                Toast.makeText(this, "AI Master not initialized", Toast.LENGTH_SHORT).show()
+            }
+
+        } catch (e: Exception) {
+            Log.e("WhiteboardActivity", "Error converting bitmap to base64", e)
+            Toast.makeText(this, "Error processing image: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /*
+    * Converts a Bitmap to Base64 (without data URI prefix).
+    */
+    private fun convertBitmapToBase64(bitmap: Bitmap): String? {
+        return try {
+            Log.d("WhiteboardActivity", "=== Starting Bitmap to Base64 Conversion ===")
+
+            val outputStream = ByteArrayOutputStream()
+            val format = Bitmap.CompressFormat.PNG
+            val success = bitmap.compress(format, 100, outputStream)
+
+            if (!success) {
+                Log.e("WhiteboardActivity", "❌ Bitmap compression failed")
+                return null
+            }
+
+            val byteArray = outputStream.toByteArray()
+            val sizeKB = byteArray.size / 1024.0
+            Log.d(
+                "WhiteboardActivity",
+                "✅ Compressed to ${String.format("%.2f", sizeKB)} KB (${byteArray.size} bytes)"
+            )
+
+            outputStream.close()
+
+            // Encode to base64
+            val base64 = Base64.encodeToString(byteArray, Base64.NO_WRAP)
+            Log.d("WhiteboardActivity", "✅ Base64 encoded: ${base64.length} characters")
+
+            // Verify it's a valid PNG base64
+            if (base64.startsWith("iVBORw0KGgo")) {
+                Log.d("WhiteboardActivity", "✅ Valid PNG base64 signature confirmed")
+            } else {
+                Log.w("WhiteboardActivity", "⚠️ Unexpected base64 start: ${base64.take(20)}")
+            }
+
+            base64
+        } catch (e: Exception) {
+            Log.e("WhiteboardActivity", "❌ Error in convertBitmapToBase64", e)
+            null
+        }
+    }
+
+    private fun getMainLayoutBackgroundColor(): Int {
+        Log.e("WhiteboardActivity", "getMainLayoutBackgroundColor: Starting")
+        return try {
+            if (mainLayout == null) {
+                Log.e("WhiteboardActivity", "mainLayout is null!")
+                return Color.WHITE
+            }
+            val background = mainLayout.background
+            if (background is ColorDrawable) {
+                val color = background.color
+                Log.e("WhiteboardActivity", "Background color (ColorDrawable): #${String.format("%08X", color)}")
+                color
+            } else {
+                Log.e("WhiteboardActivity", "Background is null or not a ColorDrawable, falling back to theme")
+                val attrs = intArrayOf(android.R.attr.background)
+                val typedArray = theme.obtainStyledAttributes(attrs)
+                val color = typedArray.getColor(0, Color.WHITE)
+                Log.e("WhiteboardActivity", "Theme background color: #${String.format("%08X", color)}")
+                typedArray.recycle()
+                color
+            }
+        } catch (e: Exception) {
+            Log.e("WhiteboardActivity", "Error getting background color", e)
+            Color.WHITE
         }
     }
 }
