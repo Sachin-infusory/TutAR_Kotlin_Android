@@ -1,13 +1,12 @@
-// ModelBrowserDrawer.kt - Bottom drawer for model browsing (Fixed)
+// ModelBrowserDrawer.kt - Bottom drawer for model browsing with Breadcrumb Navigation
 package com.infusory.tutarapp.ui.models
 
 import android.content.Context
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
-import android.widget.TextView
-import android.widget.Toast
-import androidx.recyclerview.widget.LinearLayoutManager
+import android.widget.*
+import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.gson.Gson
@@ -28,9 +27,8 @@ class ModelBrowserDrawer(
     private var bottomSheetDialog: BottomSheetDialog? = null
     private lateinit var adapter: ModelBrowserAdapter
     private lateinit var recyclerView: RecyclerView
-    private lateinit var pathTextView: TextView
-    private lateinit var titleTextView: TextView
-    private lateinit var searchEditText: android.widget.EditText
+    private lateinit var breadcrumbContainer: LinearLayout
+    private lateinit var searchEditText: EditText
     private lateinit var dialogView: View
 
     private var classesData: List<ClassData> = emptyList()
@@ -46,7 +44,7 @@ class ModelBrowserDrawer(
         if (classesData.isNotEmpty()) {
             createAndShowDialog()
         } else {
-            Toast.makeText(context, "class_list_demo.json file missing in models folder", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, "class_data.json file missing", Toast.LENGTH_LONG).show()
         }
     }
 
@@ -99,7 +97,6 @@ class ModelBrowserDrawer(
     }
 
     private fun createAndShowDialog() {
-        // Use standard BottomSheetDialog without any custom theme
         bottomSheetDialog = BottomSheetDialog(context)
         val view = LayoutInflater.from(context).inflate(R.layout.dialog_model_browser, null)
 
@@ -110,25 +107,22 @@ class ModelBrowserDrawer(
 
         bottomSheetDialog?.setContentView(view)
 
-        // Configure bottom sheet behavior AFTER setting content
+        // Configure bottom sheet behavior
         bottomSheetDialog?.setOnShowListener { dialog ->
             val bottomSheet = (dialog as BottomSheetDialog).findViewById<android.widget.FrameLayout>(com.google.android.material.R.id.design_bottom_sheet)
             bottomSheet?.let {
                 val behavior = com.google.android.material.bottomsheet.BottomSheetBehavior.from(it)
-
-                // Set the height first
                 val displayMetrics = context.resources.displayMetrics
-                val height = (displayMetrics.heightPixels * 0.85).toInt() // 85% of screen height
+                val height = (displayMetrics.heightPixels * 0.85).toInt()
 
                 val layoutParams = it.layoutParams
                 layoutParams.height = height
                 it.layoutParams = layoutParams
 
-                // Configure behavior after setting height
-                behavior.peekHeight = height // This ensures it opens at the set height
+                behavior.peekHeight = height
                 behavior.state = com.google.android.material.bottomsheet.BottomSheetBehavior.STATE_EXPANDED
-                behavior.isDraggable = true // Allow dragging to close
-                behavior.isHideable = true // Allow dismissing by dragging down
+                behavior.isDraggable = true
+                behavior.isHideable = true
             }
         }
 
@@ -143,23 +137,13 @@ class ModelBrowserDrawer(
     }
 
     private fun setupViews(view: View) {
-        pathTextView = view.findViewById(R.id.tv_path)
-        titleTextView = view.findViewById(R.id.tv_title)
-        recyclerView = view.findViewById(R.id.rv_models)
+        breadcrumbContainer = view.findViewById(R.id.breadcrumb_container)
+        recyclerView = view.findViewById(R.id.rv_content)
         searchEditText = view.findViewById(R.id.et_search)
 
         // Close button
         view.findViewById<View>(R.id.btn_close).setOnClickListener {
             bottomSheetDialog?.dismiss()
-        }
-
-        // Back button
-        view.findViewById<View>(R.id.btn_back).setOnClickListener {
-            if (isSearchMode) {
-                clearSearch()
-            } else {
-                navigateBack()
-            }
         }
 
         // Search button
@@ -199,7 +183,7 @@ class ModelBrowserDrawer(
         adapter = ModelBrowserAdapter { item ->
             handleItemClick(item)
         }
-        recyclerView.layoutManager = LinearLayoutManager(context)
+        recyclerView.layoutManager = GridLayoutManager(context, 2) // 2-column grid
         recyclerView.adapter = adapter
     }
 
@@ -207,15 +191,54 @@ class ModelBrowserDrawer(
         when (item.type) {
             BrowserItemType.CLASS -> {
                 val classData = item.data as ClassData
-                showSubjects(classData)
+                // Check if this class is already in the navigation stack
+                val existingIndex = navigationStack.indexOfFirst {
+                    it is NavigationLevel.CLASS && it.data.Class == classData.Class
+                }
+                if (existingIndex != -1) {
+                    // Class already exists in stack, navigate to that position
+                    while (navigationStack.size > existingIndex + 1) {
+                        navigationStack.removeLast()
+                    }
+                    showSubjects(classData)
+                } else {
+                    // New class, add to stack
+                    showSubjects(classData)
+                }
             }
             BrowserItemType.SUBJECT -> {
                 val subjectData = item.data as SubjectData
-                showTopics(subjectData)
+                // Check if this subject is already in the navigation stack
+                val existingIndex = navigationStack.indexOfFirst {
+                    it is NavigationLevel.SUBJECT && it.data.name == subjectData.name
+                }
+                if (existingIndex != -1) {
+                    // Subject already exists in stack, navigate to that position
+                    while (navigationStack.size > existingIndex + 1) {
+                        navigationStack.removeLast()
+                    }
+                    showTopics(subjectData)
+                } else {
+                    // New subject, add to stack
+                    showTopics(subjectData)
+                }
             }
             BrowserItemType.TOPIC -> {
                 val topicData = item.data as TopicData
-                showModels(topicData)
+                // Check if this topic is already in the navigation stack
+                val existingIndex = navigationStack.indexOfFirst {
+                    it is NavigationLevel.TOPIC && it.data.name == topicData.name
+                }
+                if (existingIndex != -1) {
+                    // Topic already exists in stack, navigate to that position
+                    while (navigationStack.size > existingIndex + 1) {
+                        navigationStack.removeLast()
+                    }
+                    showModels(topicData)
+                } else {
+                    // New topic, add to stack
+                    showModels(topicData)
+                }
             }
             BrowserItemType.MODEL -> {
                 val modelData = item.data as ModelData
@@ -231,6 +254,7 @@ class ModelBrowserDrawer(
 
     private fun showClasses() {
         navigationStack.clear()
+        updateBreadcrumbs()
 
         val items = classesData.mapNotNull { classData ->
             val subjects = classData.subjects ?: return@mapNotNull null
@@ -249,15 +273,18 @@ class ModelBrowserDrawer(
             )
         }
 
-        adapter.updateItems(items, "Classes")
-        updateUI("Model Library", "Classes")
+        adapter.updateItems(items)
     }
 
     private fun showSubjects(classData: ClassData) {
-        navigationStack.add(NavigationLevel.CLASS(classData))
+        // Only add to navigation stack if it's not already there
+        val classLevel = NavigationLevel.CLASS(classData)
+        if (navigationStack.isEmpty() || navigationStack.last() != classLevel) {
+            navigationStack.add(classLevel)
+        }
+        updateBreadcrumbs()
 
         val items = mutableListOf<BrowserItem>()
-        items.add(createBackItem())
 
         val subjects = classData.subjects ?: emptyList()
         items.addAll(subjects.mapNotNull { subjectData ->
@@ -273,15 +300,18 @@ class ModelBrowserDrawer(
             )
         })
 
-        adapter.updateItems(items, getCurrentPath())
-        updateUI(classData.Class, "Subjects")
+        adapter.updateItems(items)
     }
 
     private fun showTopics(subjectData: SubjectData) {
-        navigationStack.add(NavigationLevel.SUBJECT(subjectData))
+        // Only add to navigation stack if it's not already there
+        val subjectLevel = NavigationLevel.SUBJECT(subjectData)
+        if (navigationStack.isEmpty() || navigationStack.last() != subjectLevel) {
+            navigationStack.add(subjectLevel)
+        }
+        updateBreadcrumbs()
 
         val items = mutableListOf<BrowserItem>()
-        items.add(createBackItem())
 
         val topics = subjectData.topics ?: emptyList()
         items.addAll(topics.mapNotNull { topicData ->
@@ -296,15 +326,18 @@ class ModelBrowserDrawer(
             )
         })
 
-        adapter.updateItems(items, getCurrentPath())
-        updateUI(subjectData.name, "Topics")
+        adapter.updateItems(items)
     }
 
     private fun showModels(topicData: TopicData) {
-        navigationStack.add(NavigationLevel.TOPIC(topicData))
+        // Only add to navigation stack if it's not already there
+        val topicLevel = NavigationLevel.TOPIC(topicData)
+        if (navigationStack.isEmpty() || navigationStack.last() != topicLevel) {
+            navigationStack.add(topicLevel)
+        }
+        updateBreadcrumbs()
 
         val items = mutableListOf<BrowserItem>()
-        items.add(createBackItem())
 
         val models = topicData.models ?: emptyList()
         items.addAll(models.map { modelData ->
@@ -313,13 +346,96 @@ class ModelBrowserDrawer(
                 title = modelData.name,
                 subtitle = "",
                 modelPath = modelData.filename,
-                thumbnailPath = modelData.thumbnail?:"",
+                thumbnailPath = modelData.thumbnail ?: "",
                 data = modelData
             )
         })
 
-        adapter.updateItems(items, getCurrentPath())
-        updateUI(topicData.name, "Models")
+        adapter.updateItems(items)
+    }
+
+    private fun updateBreadcrumbs() {
+        breadcrumbContainer.removeAllViews()
+
+        // Always add "Home" as first breadcrumb
+        addBreadcrumb("Home", isLast = navigationStack.isEmpty()) {
+            if (navigationStack.isNotEmpty()) {
+                navigationStack.clear()
+                showClasses()
+            }
+        }
+
+        // Add navigation stack items
+        navigationStack.forEachIndexed { index, item ->
+            addBreadcrumbSeparator()
+
+            val name = when (item) {
+                is NavigationLevel.CLASS -> item.data.Class
+                is NavigationLevel.SUBJECT -> item.data.name
+                is NavigationLevel.TOPIC -> item.data.name
+            }
+
+            val isLast = index == navigationStack.size - 1
+            addBreadcrumb(name, isLast) {
+                // Navigate to this level by removing subsequent items
+                while (navigationStack.size > index + 1) {
+                    navigationStack.removeLast()
+                }
+                loadCurrentLevelData()
+                updateBreadcrumbs()
+            }
+        }
+    }
+
+    private fun addBreadcrumb(text: String, isLast: Boolean = false, onClick: (() -> Unit)? = null) {
+        val textView = TextView(context).apply {
+            this.text = text
+            setTextColor(
+                if (isLast) context.getColor(android.R.color.darker_gray)
+                else context.getColor(R.color.colorPrimary)
+            )
+            textSize = 14f
+            if (!isLast) {
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+            }
+            setPadding(16, 8, 16, 8)
+
+            if (onClick != null && !isLast) {
+                setOnClickListener { onClick() }
+                background = context.getDrawable(android.R.drawable.list_selector_background)
+            }
+        }
+
+        breadcrumbContainer.addView(textView)
+    }
+
+    private fun addBreadcrumbSeparator() {
+        val separator = TextView(context).apply {
+            text = " > "
+            setTextColor(context.getColor(android.R.color.darker_gray))
+            textSize = 14f
+            setPadding(4, 8, 4, 8)
+        }
+
+        breadcrumbContainer.addView(separator)
+    }
+
+    private fun loadCurrentLevelData() {
+        when {
+            navigationStack.isEmpty() -> showClasses()
+            navigationStack.size == 1 -> {
+                val classLevel = navigationStack.last() as NavigationLevel.CLASS
+                showSubjects(classLevel.data)
+            }
+            navigationStack.size == 2 -> {
+                val subjectLevel = navigationStack.last() as NavigationLevel.SUBJECT
+                showTopics(subjectLevel.data)
+            }
+            navigationStack.size == 3 -> {
+                val topicLevel = navigationStack.last() as NavigationLevel.TOPIC
+                showModels(topicLevel.data)
+            }
+        }
     }
 
     private fun performSearch() {
@@ -337,7 +453,7 @@ class ModelBrowserDrawer(
         updateSearchUI()
 
         // Hide keyboard
-        val inputManager = context.getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
+        val inputManager = context.getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
         inputManager.hideSoftInputFromWindow(searchEditText.windowToken, 0)
     }
 
@@ -386,13 +502,16 @@ class ModelBrowserDrawer(
                 title = result.model.name,
                 subtitle = result.path,
                 modelPath = result.model.filename,
-                thumbnailPath = result.model.thumbnail?:"",
+                thumbnailPath = result.model.thumbnail ?: "",
                 data = result.model
             )
         })
 
-        adapter.updateItems(items, "Search Results")
-        updateUI("Search Results", "Found ${results.size} models for \"$currentSearchQuery\"")
+        adapter.updateItems(items)
+
+        // Update breadcrumbs for search
+        breadcrumbContainer.removeAllViews()
+        addBreadcrumb("Search Results for: \"$currentSearchQuery\"", true)
     }
 
     private fun clearSearch() {
@@ -406,19 +525,10 @@ class ModelBrowserDrawer(
 
     private fun updateSearchUI() {
         if (isSearchMode) {
-            dialogView.findViewById<View>(R.id.btn_clear_search).visibility = android.view.View.VISIBLE
-            pathTextView.text = "Search Mode"
+            dialogView.findViewById<View>(R.id.btn_clear_search).visibility = View.VISIBLE
         } else {
-            dialogView.findViewById<View>(R.id.btn_clear_search).visibility = android.view.View.GONE
+            dialogView.findViewById<View>(R.id.btn_clear_search).visibility = View.GONE
         }
-    }
-
-    private fun createBackItem(): BrowserItem {
-        return BrowserItem(
-            type = BrowserItemType.BACK,
-            title = "← Back",
-            subtitle = ""
-        )
     }
 
     private fun navigateBack() {
@@ -458,10 +568,6 @@ class ModelBrowserDrawer(
         }
     }
 
-    private fun updateUI(title: String, pathSuffix: String) {
-        titleTextView.text = title
-        pathTextView.text = getCurrentPath()
-    }
 
     fun dismiss() {
         bottomSheetDialog?.dismiss()
@@ -475,10 +581,49 @@ class ModelBrowserDrawer(
     }
 }
 
+// Add equals and hashCode methods to NavigationLevel classes for proper comparison
 sealed class NavigationLevel {
-    data class CLASS(val data: ClassData) : NavigationLevel()
-    data class SUBJECT(val data: SubjectData) : NavigationLevel()
-    data class TOPIC(val data: TopicData) : NavigationLevel()
+    data class CLASS(val data: ClassData) : NavigationLevel() {
+        override fun equals(other: Any?): Boolean {
+            if (this === other) return true
+            if (javaClass != other?.javaClass) return false
+
+            other as CLASS
+            return data.Class == other.data.Class
+        }
+
+        override fun hashCode(): Int {
+            return data.Class.hashCode()
+        }
+    }
+
+    data class SUBJECT(val data: SubjectData) : NavigationLevel() {
+        override fun equals(other: Any?): Boolean {
+            if (this === other) return true
+            if (javaClass != other?.javaClass) return false
+
+            other as SUBJECT
+            return data.name == other.data.name
+        }
+
+        override fun hashCode(): Int {
+            return data.name.hashCode()
+        }
+    }
+
+    data class TOPIC(val data: TopicData) : NavigationLevel() {
+        override fun equals(other: Any?): Boolean {
+            if (this === other) return true
+            if (javaClass != other?.javaClass) return false
+
+            other as TOPIC
+            return data.name == other.data.name
+        }
+
+        override fun hashCode(): Int {
+            return data.name.hashCode()
+        }
+    }
 }
 
 data class SearchResult(

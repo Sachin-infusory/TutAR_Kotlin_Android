@@ -40,10 +40,6 @@ import com.infusory.tutarapp.ui.ai.ScreenAnalyzerView
 import com.infusory.tutarapp.ui.containers.UnifiedContainer
 import com.infusory.tutarapp.ui.containers.ImageContentBehavior
 import java.io.ByteArrayOutputStream
-import java.io.IOException
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 import android.util.Base64
 import com.infusory.tutarapp.managers.EmbedContainerUIManager
 
@@ -600,58 +596,6 @@ class WhiteboardActivity : AppCompatActivity() {
         }, 150)
     }
 
-
-    private fun saveBitmapToGallery(bitmap: Bitmap, prefix: String = "Screenshot") {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
-            if (ActivityCompat.checkSelfPermission(
-                    this,
-                    Manifest.permission.WRITE_EXTERNAL_STORAGE
-                ) != PackageManager.PERMISSION_GRANTED
-            ) {
-                ActivityCompat.requestPermissions(
-                    this,
-                    arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE),
-                    STORAGE_PERMISSION_REQUEST_CODE
-                )
-                return
-            }
-        }
-
-        val contentValues = ContentValues().apply {
-            put(
-                MediaStore.Images.Media.DISPLAY_NAME,
-                "${prefix}_${SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())}.png"
-            )
-            put(MediaStore.Images.Media.MIME_TYPE, "image/png")
-            put(MediaStore.Images.Media.DATE_ADDED, System.currentTimeMillis() / 1000)
-            put(MediaStore.Images.Media.DATE_TAKEN, System.currentTimeMillis())
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/TutarApp")
-                put(MediaStore.Images.Media.IS_PENDING, 1)
-            }
-        }
-
-        val resolver = contentResolver
-        val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
-        if (uri != null) {
-            try {
-                resolver.openOutputStream(uri)?.use { outputStream ->
-                    bitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream)
-                }
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    contentValues.clear()
-                    contentValues.put(MediaStore.Images.Media.IS_PENDING, 0)
-                    resolver.update(uri, contentValues, null, null)
-                }
-                Toast.makeText(this, "Image saved to gallery", Toast.LENGTH_SHORT).show()
-            } catch (e: IOException) {
-                Log.e("WhiteboardActivity", "Error saving image", e)
-                Toast.makeText(this, "Error saving image: ${e.message}", Toast.LENGTH_SHORT).show()
-            }
-        } else {
-            Toast.makeText(this, "Failed to create image file", Toast.LENGTH_SHORT).show()
-        }
-    }
 
     private fun toggleCameraWithPermission() {
         if (cameraManager.checkCameraPermission()) {

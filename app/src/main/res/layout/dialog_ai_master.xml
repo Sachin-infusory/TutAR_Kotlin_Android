@@ -53,8 +53,6 @@
                 android:background="@drawable/glass_spinner_background"
                 android:elevation="2dp"
                 android:hint="Miscel..."
-                android:textColor="@android:color/white"
-                android:textColorHint="#FFFFFF"
                 android:padding="12dp" />
         </LinearLayout>
 
@@ -71,8 +69,6 @@
                 android:layout_height="45dp"
                 android:background="@drawable/glass_spinner_background"
                 android:elevation="2dp"
-                android:textColor="@android:color/white"
-                android:textColorHint="#80FFFFFF"
                 android:hint="Science..."
                 android:padding="12dp" />
         </LinearLayout>
@@ -91,8 +87,6 @@
                 android:background="@drawable/glass_spinner_background"
                 android:elevation="2dp"
                 android:hint="Lesso..."
-                android:textColor="@android:color/white"
-                android:textColorHint="#80FFFFFF"
                 android:padding="12dp" />
         </LinearLayout>
     </LinearLayout>

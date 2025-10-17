@@ -32,10 +32,10 @@ class EmbeddingDraggableResizableContainer(context: Context) : ViewGroup(context
     private var currentSearchQuery: String = ""
 
     // Load drawable icons
-    private val dragIcon = ContextCompat.getDrawable(context, R.drawable.ic_more)
+    private val dragIcon = ContextCompat.getDrawable(context, R.drawable.ic_drag)
     private val closeIcon = ContextCompat.getDrawable(context, R.drawable.ic_close)
     private val searchIcon = ContextCompat.getDrawable(context, R.drawable.ic_search)
-    private val resizeIcon = ContextCompat.getDrawable(context, R.drawable.ic_insert)
+    private val resizeIcon = ContextCompat.getDrawable(context, R.drawable.ic_resize)
     private val fullScreenIcon = ContextCompat.getDrawable(context, R.drawable.ic_square_tool)
 
     private var lastX = 0f
@@ -443,21 +443,16 @@ class EmbeddingDraggableResizableContainer(context: Context) : ViewGroup(context
     }
 
     // Add this method to load content from saved state
-    // Add this method to load content from saved state
     fun performSearchForUrl(url: String, searchQuery: String = "") {
-        // Set the search query in the search bar (for display purposes only)
+        // Set the search query in the search bar
         searchBar.setText(searchQuery.ifEmpty { url })
         currentSearchQuery = searchQuery.ifEmpty { url }
 
-        // Load the content immediately without requiring search button click
+        // Load the content
         loadContent(url)
 
         // Update state
         updateState()
-
-        // Clear focus and hide keyboard to ensure clean state
-        searchBar.clearFocus()
-        hideKeyboard()
     }
 
     private fun resetYouTubePlayer() {
@@ -496,14 +491,14 @@ class EmbeddingDraggableResizableContainer(context: Context) : ViewGroup(context
             extractYouTubeVideoId(normalizedUrl)?.let { videoId ->
                 loadYouTubeVideo(videoId)
                 currentContentType = ContentType.YOUTUBE
-                updateAspectRatio()
+                updateAspectRatio() // Use the method instead of direct assignment
                 adjustContainerForYouTube()
             }
         } else {
             showWebView()
             loadWebsite(normalizedUrl)
             currentContentType = ContentType.WEBSITE
-            updateAspectRatio()
+            updateAspectRatio() // Use the method instead of direct assignment
             adjustContainerForWebsite()
         }
 
@@ -512,9 +507,6 @@ class EmbeddingDraggableResizableContainer(context: Context) : ViewGroup(context
         requestLayout()
 
         searchBar.visibility = View.VISIBLE
-
-        // Show loading toast
-        Toast.makeText(context, "Loading content...", Toast.LENGTH_SHORT).show()
     }
 
     private fun stopPreviousContent() {
