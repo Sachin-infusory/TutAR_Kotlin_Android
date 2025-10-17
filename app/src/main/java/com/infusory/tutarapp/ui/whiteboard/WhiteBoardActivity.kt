@@ -45,6 +45,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import android.util.Base64
+import com.infusory.tutarapp.managers.EmbedContainerUIManager
 
 enum class ActionType {
     SAVE, INSERT
@@ -61,6 +62,7 @@ class WhiteboardActivity : AppCompatActivity() {
     private lateinit var cameraManager: CameraManager
     private lateinit var buttonStateManager: WhiteboardButtonStateManager
     private lateinit var stateManager: WhiteboardStateManager
+    private lateinit var embedContainerUIManager: EmbedContainerUIManager
 
     private lateinit var popupHandler: PopupHandler
     private lateinit var imagePickerHandler: ImagePickerHandler
@@ -105,11 +107,18 @@ class WhiteboardActivity : AppCompatActivity() {
         mainLayout = findViewById(R.id.main)
     }
 
+    private fun setupEmbedContainerManager() {
+        embedContainerUIManager = EmbedContainerUIManager(this, mainLayout)
+        embedContainerUIManager.onContainerRemoved = { container ->
+            // Handle container removal if needed
+        }
+    }
+
     private fun initManagers() {
         setupAnnotationTool()
         setupCameraManager()
         setupContainerManager()
-
+        setupEmbedContainerManager()
         buttonStateManager = WhiteboardButtonStateManager(this)
         stateManager = WhiteboardStateManager(this)
     }
@@ -394,11 +403,11 @@ class WhiteboardActivity : AppCompatActivity() {
                             deactivateButtonsByKey("insert")
                         },
                         onInsertYoutube = {
-                            containerManager.addYouTubeContainer()
+                            embedContainerUIManager.addYouTubeContainer()
                             deactivateButtonsByKey("insert")
                         },
                         onInsertWebsite = {
-                            containerManager.addWebsiteContainer()
+                            embedContainerUIManager.addWebsiteContainer()
                             deactivateButtonsByKey("insert")
                         },
                         onDismiss = {
@@ -842,6 +851,36 @@ class WhiteboardActivity : AppCompatActivity() {
         imagePickerHandler.cleanup()
     }
 
+//    override fun onBackPressed() {
+//        if (cameraManager.isCameraActive()) {
+//            cameraManager.stopCamera()
+//            return
+//        }
+//        if (annotationTool?.isInAnnotationMode() == true) {
+//            annotationTool?.toggleAnnotationMode(false)
+//            return
+//        }
+//        if (containerManager.getContainerCount() > 0) {
+//            android.app.AlertDialog.Builder(this)
+//                .setTitle("Save Whiteboard?")
+//                .setMessage("You have ${containerManager.getContainerCount()} container(s). Save before leaving?")
+//                .setPositiveButton("Save & Exit") { _, _ ->
+//                    stateManager.saveState(containerManager, cameraManager.isCameraActive())
+//                    Toast.makeText(this, "Whiteboard saved", Toast.LENGTH_SHORT).show()
+//                    super.onBackPressed()
+//                }
+//                .setNegativeButton("Exit Without Saving") { _, _ ->
+//                    super.onBackPressed()
+//                }
+//                .setNeutralButton("Cancel") { dialog, _ ->
+//                    dialog.dismiss()
+//                }
+//                .show()
+//        } else {
+//            super.onBackPressed()
+//        }
+//    }
+
     override fun onBackPressed() {
         if (cameraManager.isCameraActive()) {
             cameraManager.stopCamera()
@@ -851,10 +890,14 @@ class WhiteboardActivity : AppCompatActivity() {
             annotationTool?.toggleAnnotationMode(false)
             return
         }
-        if (containerManager.getContainerCount() > 0) {
+
+        // Get total container count including both regular and embed containers
+        val totalContainers = containerManager.getContainerCount() + embedContainerUIManager.getEmbedContainerCount()
+
+        if (totalContainers > 0) {
             android.app.AlertDialog.Builder(this)
                 .setTitle("Save Whiteboard?")
-                .setMessage("You have ${containerManager.getContainerCount()} container(s). Save before leaving?")
+                .setMessage("You have $totalContainers container(s). Save before leaving?")
                 .setPositiveButton("Save & Exit") { _, _ ->
                     stateManager.saveState(containerManager, cameraManager.isCameraActive())
                     Toast.makeText(this, "Whiteboard saved", Toast.LENGTH_SHORT).show()
@@ -945,11 +988,8 @@ class WhiteboardActivity : AppCompatActivity() {
     */
     fun addYouTubeContainerWithUrl(youtubeUrl: String) {
         try {
-            val youtubeContainer = containerManager.addYouTubeContainer()
-            if (youtubeContainer is com.infusory.tutarapp.ui.components.containers.ContainerYouTube) {
-                youtubeContainer.setYouTubeUrl(youtubeUrl)
-                Toast.makeText(this, "YouTube video loaded", Toast.LENGTH_SHORT).show()
-            }
+            embedContainerUIManager.addYouTubeContainerWithUrl(youtubeUrl)
+            Toast.makeText(this, "YouTube video loaded", Toast.LENGTH_SHORT).show()
         } catch (e: Exception) {
             android.util.Log.e("WhiteboardActivity", "Error adding YouTube container", e)
             Toast.makeText(this, "Error adding YouTube video: ${e.message}", Toast.LENGTH_SHORT)
