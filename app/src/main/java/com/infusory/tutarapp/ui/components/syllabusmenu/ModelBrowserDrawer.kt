@@ -313,7 +313,7 @@ class ModelBrowserDrawer(
                 title = modelData.name,
                 subtitle = "",
                 modelPath = modelData.filename,
-                thumbnailPath = modelData.thumbnail,
+                thumbnailPath = modelData.thumbnail?:"",
                 data = modelData
             )
         })
@@ -386,7 +386,7 @@ class ModelBrowserDrawer(
                 title = result.model.name,
                 subtitle = result.path,
                 modelPath = result.model.filename,
-                thumbnailPath = result.model.thumbnail,
+                thumbnailPath = result.model.thumbnail?:"",
                 data = result.model
             )
         })

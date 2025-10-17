@@ -154,33 +154,12 @@ class ContainerManager(
         ).show()
     }
 
-    fun addYouTubeContainer(): ContainerBase? {
-        if (containers.size >= maxContainers) {
-            showMaxContainersMessage()
-            return null
-        }
 
-        val container = ContainerYouTube(context)
-        return addContainer(container, "YouTube container added")
-    }
-
-    fun addWebsiteContainer(): ContainerBase? {
-        if (containers.size >= maxContainers) {
-            showMaxContainersMessage()
-            return null
-        }
-
-        val container = ContainerWebsite(context)
-        return addContainer(container, "Website container added")
-    }
 
     fun getContainerCount(): Int = containers.size
 
     fun getAllContainers(): List<ContainerBase> = containers.toList()
 
-    fun getContainerByType(type: ContainerBase.ContainerType): List<ContainerBase> {
-        return containers.filter { it.containerType == type }
-    }
 
     fun saveState(): ContainerStateData {
         val containerStates = containers.map { container ->

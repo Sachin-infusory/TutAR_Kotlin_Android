@@ -39,7 +39,9 @@ import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.infusory.tutarapp.R
 import com.infusory.tutarapp.ui.data.ClassData
+import com.infusory.tutarapp.ui.data.ModelData
 import com.infusory.tutarapp.ui.data.SubjectData
+import com.infusory.tutarapp.ui.data.TopicData
 import com.infusory.tutarapp.ui.whiteboard.WhiteboardActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -61,8 +63,12 @@ import java.util.concurrent.TimeUnit
 
 class AiMasterDrawer(
     private val activity: WhiteboardActivity,
+    private val mainLayoutBackgroundColor: Int = Color.WHITE,
     private val onResultReceived: (String) -> Unit
 ) {
+    init {
+        Log.e("AiMasterDrawer", "Initialized with background color: #${String.format("%08X", mainLayoutBackgroundColor)}")
+    }
 
     private val context: Context get() = activity
     private var dialog: Dialog? = null
@@ -90,6 +96,8 @@ class AiMasterDrawer(
     private var lastSearchData: JSONObject? = null
     private var hasSearchResults: Boolean = false
 
+    private var currentCapturedImage: String? = null
+
     // Network
     private val client = OkHttpClient.Builder()
         .connectTimeout(120, TimeUnit.SECONDS)
@@ -114,36 +122,47 @@ class AiMasterDrawer(
 
     private fun loadClassData() {
         try {
-            val gson = Gson()
-            val listType = object : TypeToken<List<ClassData>>() {}.type
-
             try {
-                val inputStream = context.assets.open("class_list_demo.json")
+                val inputStream = context.assets.open("class_data.json")
                 val jsonString = inputStream.bufferedReader().use { it.readText() }
                 inputStream.close()
 
-                classesData = gson.fromJson(jsonString, listType)
-                Log.d("AiMasterDrawer", "Successfully loaded ${classesData.size} classes from assets")
-                return
+                classesData = normalizeClassData(jsonString)
+                if (classesData.isNotEmpty()) {
+                    Log.d("AiMasterDrawer", "Loaded production data: ${classesData.size} classes")
+                    return
+                }
             } catch (e: Exception) {
-                Log.d("AiMasterDrawer", "Failed to load from assets, trying other locations...")
+                Log.e("AiMasterDrawer", "Production data not available: ${e.message}")
             }
-
-            val internalFile = File(context.filesDir, "class_data.json")
-            if (internalFile.exists()) {
-                val fileReader = FileReader(internalFile)
-                classesData = gson.fromJson(fileReader, listType)
-                fileReader.close()
-                Log.d("AiMasterDrawer", "Successfully loaded ${classesData.size} classes from internal storage")
-                return
-            }
-
-            Log.e("AiMasterDrawer", "class_data.json not found in any location")
-            classesData = emptyList()
-
         } catch (e: Exception) {
-            Log.e("AiMasterDrawer", "Error loading class data: ${e.message}", e)
+            Log.e("AiMasterDrawer", "Critical error loading class data: ${e.message}", e)
             classesData = emptyList()
+        }
+    }
+
+    private fun normalizeClassData(jsonString: String): List<ClassData> {
+        return try {
+            val gson = Gson()
+            val listType = object : TypeToken<List<ClassData>>() {}.type
+            val rawData = gson.fromJson<List<ClassData>>(jsonString, listType)
+
+            rawData.filter { it.Class != null }.map { classData ->
+                val normalizedSubjects = classData.subjects?.map { subject ->
+                    when {
+                        subject.topics != null -> subject // Production structure
+//                        subject.models != null -> SubjectData( // Demo structure
+//                            name = subject.name,
+//                            topics = listOf(TopicData(name = subject.name, models = subject.models))
+//                        )
+                        else -> SubjectData(name = subject.name, topics = emptyList())
+                    }
+                }
+                classData.copy(subjects = normalizedSubjects)
+            }
+        } catch (e: Exception) {
+            Log.e("AiMasterDrawer", "Normalization failed: ${e.message}")
+            emptyList()
         }
     }
 
@@ -166,11 +185,19 @@ class AiMasterDrawer(
         classAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         classSpinner.adapter = classAdapter
         classSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+            override fun onItemSelected(
+                parent: AdapterView<*>?,
+                view: View?,
+                position: Int,
+                id: Long
+            ) {
                 selectedClass = if (position > 0) classesData[position - 1] else null
                 setupSubjectSpinner()
             }
-            override fun onNothingSelected(parent: AdapterView<*>?) { selectedClass = null; setupSubjectSpinner() }
+
+            override fun onNothingSelected(parent: AdapterView<*>?) {
+                selectedClass = null; setupSubjectSpinner()
+            }
         }
 
         val optionsList = mutableListOf("Select Option")
@@ -179,10 +206,18 @@ class AiMasterDrawer(
         optionAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         optionSpinner.adapter = optionAdapter
         optionSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+            override fun onItemSelected(
+                parent: AdapterView<*>?,
+                view: View?,
+                position: Int,
+                id: Long
+            ) {
                 selectedOption = if (position > 0) options[position - 1] else ""
             }
-            override fun onNothingSelected(parent: AdapterView<*>?) { selectedOption = "" }
+
+            override fun onNothingSelected(parent: AdapterView<*>?) {
+                selectedOption = ""
+            }
         }
         setupSubjectSpinner()
     }
@@ -195,15 +230,26 @@ class AiMasterDrawer(
         subjectAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         subjectSpinner.adapter = subjectAdapter
         subjectSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
-                selectedSubject = if (position > 0 && selectedClass?.subjects != null) selectedClass!!.subjects!![position - 1] else null
+            override fun onItemSelected(
+                parent: AdapterView<*>?,
+                view: View?,
+                position: Int,
+                id: Long
+            ) {
+                selectedSubject =
+                    if (position > 0 && selectedClass?.subjects != null) selectedClass!!.subjects!![position - 1] else null
             }
-            override fun onNothingSelected(parent: AdapterView<*>?) { selectedSubject = null }
+
+            override fun onNothingSelected(parent: AdapterView<*>?) {
+                selectedSubject = null
+            }
         }
     }
 
     private fun performSearch() {
-        if (selectedClass == null || selectedSubject == null || selectedOption.isEmpty() || queryEditText.text.toString().trim().isEmpty()) {
+        if (selectedClass == null || selectedSubject == null || selectedOption.isEmpty() || queryEditText.text.toString()
+                .trim().isEmpty()
+        ) {
             Toast.makeText(context, "Please fill all fields", Toast.LENGTH_SHORT).show()
             return
         }
@@ -231,7 +277,7 @@ class AiMasterDrawer(
         val mediaType = "application/json; charset=utf-8".toMediaType()
         val requestBody = jsonData.toRequestBody(mediaType)
         val request = Request.Builder()
-            .url("https://dev-api.tutarverse.com/gemini/search")
+            .url("https://ndkg0hst-5001.inc1.devtunnels.ms/gemini/search")
             .post(requestBody)
             .addHeader("Content-Type", "application/json")
             .build()
@@ -265,6 +311,13 @@ class AiMasterDrawer(
                 }
             } finally {
                 isStreaming = false
+                withContext(Dispatchers.Main) {
+                    // ✅ Re-enable search button after completion
+                    if (::searchButton.isInitialized) {
+                        searchButton.isEnabled = true
+                        searchButton.alpha = 1.0f
+                    }
+                }
             }
         }
     }
@@ -321,8 +374,6 @@ class AiMasterDrawer(
                     val responseTime = System.currentTimeMillis() - requestStartTime
                     val parsed = JSONObject(jsonData)
 
-                    Log.d("AiMasterDrawer", "📨 Stream Response: type=${parsed.optString("type")} at ${responseTime}ms")
-
                     withContext(Dispatchers.Main) {
                         handleStreamingData(parsed, responseTime)
                     }
@@ -342,7 +393,6 @@ class AiMasterDrawer(
         if (resultsContainer.childCount > 0) {
             val firstChild = resultsContainer.getChildAt(0)
             if (firstChild.tag == "skeleton_container") {
-                Log.d("AiMasterDrawer", "Removing skeleton, displaying real data")
                 resultsContainer.removeAllViews()
             }
         }
@@ -353,28 +403,40 @@ class AiMasterDrawer(
                 data?.let {
                     Log.d("AiMasterDrawer", "Gemini response received")
 
-                    // Handle lesson plan
+                    // ✅ 1. Display 3D Models first
+                    if (it.has("names")) {
+                        val names = it.getJSONArray("names")
+                        display3DModels(names)
+                    }
+
+                    // ✅ 2. Display Images next
+                    if (it.has("images")) {
+                        val images = it.getJSONArray("images")
+                        displayImages(images)
+                    }
+
+                    // ✅ 3. Display Videos next
+                    if (it.has("videos")) {
+                        val videos = it.getJSONArray("videos")
+                        displayVideos(videos)
+                    }
+
+                    // ✅ 4. Finally display content (lesson plan + description)
                     if (it.has("content")) {
                         val content = it.getJSONObject("content")
 
-                        // Display lesson plan if present
+                        // Lesson plan first within content
                         if (content.has("lessonPlan")) {
                             displayLessonPlan(content.getJSONObject("lessonPlan"))
                         }
 
-                        // Display description if present
+                        // Then description
                         if (content.has("description")) {
                             val descriptionArray = content.getJSONArray("description")
                             if (descriptionArray.length() > 0) {
                                 displayDescription(descriptionArray)
                             }
                         }
-                    }
-
-                    // Handle 3D models
-                    if (it.has("names")) {
-                        val names = it.getJSONArray("names")
-                        display3DModels(names)
                     }
                 }
             }
@@ -398,7 +460,6 @@ class AiMasterDrawer(
             }
 
             "description" -> {
-                // Add this new case specifically for description streaming
                 data?.let {
                     if (it.has("description")) {
                         val descriptionArray = it.getJSONArray("description")
@@ -410,7 +471,6 @@ class AiMasterDrawer(
             }
 
             "lessonPlan" -> {
-                // Add this new case specifically for lesson plan streaming
                 data?.let {
                     if (it.has("lessonPlan")) {
                         displayLessonPlan(it.getJSONObject("lessonPlan"))
@@ -421,7 +481,6 @@ class AiMasterDrawer(
             "mcqs" -> {
                 data?.let {
                     if (it.has("mcqs")) {
-                        // Handle MCQs if needed
                         Log.d("AiMasterDrawer", "MCQs received")
                     }
                 }
@@ -431,31 +490,7 @@ class AiMasterDrawer(
                 displayErrorMessage("Error: $message", responseTime)
             }
         }
-    }
 
-    private fun displayStatusUpdate(message: String, step: Int, total: Int, responseTime: Long) {
-        val statusView = TextView(context).apply {
-            text = "⏳ $message (Step $step/$total) - ${responseTime}ms"
-            textSize = 13f
-            setTextColor(Color.parseColor("#666666"))
-            setPadding(dpToPx(16), dpToPx(8), dpToPx(16), dpToPx(8))
-            setBackgroundColor(Color.parseColor("#FFF3CD"))
-        }
-        resultsContainer.addView(statusView)
-        resultsScrollView.post { resultsScrollView.fullScroll(View.FOCUS_DOWN) }
-    }
-
-    private fun displayCompletionMessage(message: String, responseTime: Long) {
-        val completeView = TextView(context).apply {
-            text = "✅ $message - Total: ${responseTime}ms"
-            textSize = 14f
-            setTextColor(Color.parseColor("#155724"))
-            setTypeface(null, Typeface.BOLD)
-            setPadding(dpToPx(16), dpToPx(12), dpToPx(16), dpToPx(12))
-            setBackgroundColor(Color.parseColor("#D4EDDA"))
-        }
-        resultsContainer.addView(completeView)
-        resultsScrollView.post { resultsScrollView.fullScroll(View.FOCUS_DOWN) }
     }
 
     private fun displayErrorMessage(message: String, responseTime: Long) {
@@ -547,7 +582,8 @@ class AiMasterDrawer(
             val numLines = if (heightDp > 150) 4 else 2
             for (i in 0 until numLines) {
                 addView(View(context).apply {
-                    val width = if (i == numLines - 1) dpToPx(180) else LinearLayout.LayoutParams.MATCH_PARENT
+                    val width =
+                        if (i == numLines - 1) dpToPx(180) else LinearLayout.LayoutParams.MATCH_PARENT
                     layoutParams = LinearLayout.LayoutParams(width, dpToPx(12)).apply {
                         setMargins(0, dpToPx(8), 0, 0)
                     }
@@ -655,25 +691,6 @@ class AiMasterDrawer(
         displayErrorMessage(errorMessage, System.currentTimeMillis() - requestStartTime)
     }
 
-    private fun handleApiResponse(responseBody: String) {
-        try {
-            val jsonResponse = JSONObject(responseBody)
-            if (jsonResponse.optBoolean("status", false)) {
-                val data = jsonResponse.getJSONObject("data")
-                lastSearchData = data
-                hasSearchResults = true
-                displayResults(data)
-                resultsScrollView.visibility = View.VISIBLE
-                Toast.makeText(context, "Search completed successfully!", Toast.LENGTH_SHORT).show()
-            } else {
-                Toast.makeText(context, "Search failed: No data received", Toast.LENGTH_LONG).show()
-            }
-        } catch (e: Exception) {
-            Log.e("AiMasterDrawer", "Error handling API response", e)
-            Toast.makeText(context, "Error processing response: ${e.message}", Toast.LENGTH_LONG).show()
-        }
-    }
-
     private fun createAndShowDialog() {
         dialog = Dialog(context, R.style.CustomCenteredDialog)
         dialog?.requestWindowFeature(Window.FEATURE_NO_TITLE)
@@ -685,10 +702,12 @@ class AiMasterDrawer(
         animatedBorderView = AnimatedGradientBorderView(context)
         val borderContainer = FrameLayout(context).apply {
             addView(view)
-            addView(animatedBorderView, FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.MATCH_PARENT
-            ))
+            addView(
+                animatedBorderView, FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT
+                )
+            )
         }
 
         setupViews(view)
@@ -708,17 +727,24 @@ class AiMasterDrawer(
             val configuration = context.resources.configuration
             val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
-            val dialogWidth = (550 * displayMetrics.density).toInt()
-            val dialogHeight = (displayMetrics.heightPixels * 0.90).toInt()
+            val dialogWidth = (550 * displayMetrics.density).toInt()   // your current width
+            val dialogHeight = (displayMetrics.heightPixels * 0.80).toInt()  // your current height
 
             val layoutParams = window.attributes
             layoutParams.width = dialogWidth
             layoutParams.height = dialogHeight
-            layoutParams.gravity = if (isLandscape) Gravity.CENTER else Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+
+            // Bottom vertically, centered horizontally
+            layoutParams.gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+
+            // Optional: small margin from bottom (0 = flush)
+            layoutParams.y = 0
+
             layoutParams.dimAmount = 0.6f
             window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
             window.attributes = layoutParams
         }
+
 
         dialog?.setCancelable(true)
         dialog?.setCanceledOnTouchOutside(true)
@@ -777,7 +803,14 @@ class AiMasterDrawer(
                     delay(100)
                 }
             }
-
+            if (data.has("videos")) {
+                val videos = data.getJSONArray("videos")
+                if (videos.length() > 0) {
+                    withContext(Dispatchers.Main) {
+                        displayVideos(videos)
+                    }
+                }
+            }
             if (data.has("images")) {
                 val images = data.getJSONArray("images")
                 if (images.length() > 0) {
@@ -788,14 +821,7 @@ class AiMasterDrawer(
                 }
             }
 
-            if (data.has("videos")) {
-                val videos = data.getJSONArray("videos")
-                if (videos.length() > 0) {
-                    withContext(Dispatchers.Main) {
-                        displayVideos(videos)
-                    }
-                }
-            }
+
         }
     }
 
@@ -822,10 +848,22 @@ class AiMasterDrawer(
                 addView(createLessonPlanCard("TOPIC", lessonPlan.getString("topic"), true))
             }
             if (lessonPlan.has("explanation")) {
-                addView(createLessonPlanCard("Explanation", lessonPlan.getString("explanation"), false))
+                addView(
+                    createLessonPlanCard(
+                        "Explanation",
+                        lessonPlan.getString("explanation"),
+                        false
+                    )
+                )
             }
             if (lessonPlan.has("conclusion")) {
-                addView(createLessonPlanCard("Conclusion", lessonPlan.getString("conclusion"), false))
+                addView(
+                    createLessonPlanCard(
+                        "Conclusion",
+                        lessonPlan.getString("conclusion"),
+                        false
+                    )
+                )
             }
             if (lessonPlan.has("notes")) {
                 addView(createLessonPlanCard("Notes", lessonPlan.getString("notes"), false))
@@ -844,7 +882,11 @@ class AiMasterDrawer(
         }
     }
 
-    private fun createLessonPlanCard(heading: String, content: String, isTopic: Boolean): LinearLayout {
+    private fun createLessonPlanCard(
+        heading: String,
+        content: String,
+        isTopic: Boolean
+    ): LinearLayout {
         return LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dpToPx(16), dpToPx(14), dpToPx(16), dpToPx(14))
@@ -940,7 +982,8 @@ class AiMasterDrawer(
                 textSize = 14f
                 setTextColor(Color.WHITE)
                 setLineSpacing(1.4f, 1.0f)
-                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                layoutParams =
+                    LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
             })
         }
     }
@@ -964,7 +1007,12 @@ class AiMasterDrawer(
         }
     }
 
-    private fun createMarginLayoutParams(left: Int, top: Int, right: Int, bottom: Int): LinearLayout.LayoutParams {
+    private fun createMarginLayoutParams(
+        left: Int,
+        top: Int,
+        right: Int,
+        bottom: Int
+    ): LinearLayout.LayoutParams {
         return LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
             LinearLayout.LayoutParams.WRAP_CONTENT
@@ -995,7 +1043,12 @@ class AiMasterDrawer(
     private fun createDashedBorder(): GradientDrawable {
         return GradientDrawable().apply {
             setColor(Color.TRANSPARENT)
-            setStroke(dpToPx(1), Color.parseColor("#666666"), dpToPx(8).toFloat(), dpToPx(4).toFloat())
+            setStroke(
+                dpToPx(1),
+                Color.parseColor("#666666"),
+                dpToPx(8).toFloat(),
+                dpToPx(4).toFloat()
+            )
             cornerRadius = dpToPx(8).toFloat()
         }
     }
@@ -1013,7 +1066,10 @@ class AiMasterDrawer(
 
         val horizontalContainer = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
-            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
         }
 
         val scrollView = HorizontalScrollView(context).apply {
@@ -1035,13 +1091,20 @@ class AiMasterDrawer(
         addSpacer(5)
     }
 
+    private fun getModelsForSubject(subject: SubjectData?): List<ModelData> {
+        return subject?.topics?.flatMap { it.models ?: emptyList() } ?: emptyList()
+    }
+
     private fun display3DModels(names: JSONArray) {
         val sectionTitle = createSectionTitle("3D Models")
         resultsContainer.addView(sectionTitle)
-
+        val models = getModelsForSubject(selectedSubject)
         val horizontalContainer = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
-            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
         }
 
         val scrollView = HorizontalScrollView(context).apply {
@@ -1059,35 +1122,33 @@ class AiMasterDrawer(
         addSpacer(5)
     }
 
-    private fun addYouTubeContainerToWhiteboard(videoId: String) {
-        try {
-            val youtubeUrl = "https://www.youtube.com/watch?v=$videoId"
-            activity.addYouTubeContainerWithUrl(youtubeUrl)
-            dismiss()
-            Toast.makeText(context, "YouTube video added to canvas", Toast.LENGTH_SHORT).show()
-        } catch (e: Exception) {
-            Log.e("AiMasterDrawer", "Error adding YouTube container", e)
-            Toast.makeText(context, "Error adding video: ${e.message}", Toast.LENGTH_SHORT).show()
-        }
-    }
 
     private fun createVideoCard(videoId: String, thumbnail: String, title: String): LinearLayout {
         val cardLayout = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dpToPx(8), dpToPx(8), dpToPx(8), dpToPx(8))
             setBackgroundResource(R.drawable.modern_video_card_background)
-            layoutParams = LinearLayout.LayoutParams(dpToPx(200), LinearLayout.LayoutParams.WRAP_CONTENT).apply {
-                setMargins(dpToPx(8), 0, dpToPx(8), 0)
-            }
+            layoutParams =
+                LinearLayout.LayoutParams(dpToPx(200), LinearLayout.LayoutParams.WRAP_CONTENT)
+                    .apply {
+                        setMargins(dpToPx(8), 0, dpToPx(8), 0)
+                    }
             isClickable = true
             elevation = 4f
             setOnClickListener {
-                addYouTubeContainerToWhiteboard(videoId)
+                // Use the manager's method to add YouTube container with URL and search
+                val youtubeUrl = if (videoId.startsWith("http")) {
+                    videoId
+                } else {
+                    "https://www.youtube.com/watch?v=$videoId"
+                }
+                activity.addYouTubeContainerWithUrl(youtubeUrl)
             }
         }
 
         val thumbnailContainer = FrameLayout(context).apply {
-            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dpToPx(80))
+            layoutParams =
+                LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dpToPx(80))
         }
 
         val thumbnailView = ImageView(context).apply {
@@ -1130,6 +1191,23 @@ class AiMasterDrawer(
         thumbnailContainer.addView(thumbnailView)
         thumbnailContainer.addView(playIcon)
 
+        // Add title if available
+//        if (title.isNotEmpty() && title != "Video ${videos.length()}") {
+//            val titleView = TextView(context).apply {
+//                text = title
+//                textSize = 12f
+//                setTextColor(Color.WHITE)
+//                maxLines = 2
+//                ellipsize = TextUtils.TruncateAt.END
+//                setPadding(0, dpToPx(4), 0, 0)
+//                layoutParams = LinearLayout.LayoutParams(
+//                    LinearLayout.LayoutParams.MATCH_PARENT,
+//                    LinearLayout.LayoutParams.WRAP_CONTENT
+//                )
+//            }
+//            cardLayout.addView(titleView)
+//        }
+
         cardLayout.addView(thumbnailContainer)
         return cardLayout
     }
@@ -1139,9 +1217,11 @@ class AiMasterDrawer(
             orientation = LinearLayout.VERTICAL
             setPadding(dpToPx(8), dpToPx(8), dpToPx(8), dpToPx(8))
             setBackgroundResource(R.drawable.modern_video_card_background)
-            layoutParams = LinearLayout.LayoutParams(dpToPx(120), LinearLayout.LayoutParams.WRAP_CONTENT).apply {
-                setMargins(dpToPx(8), 0, dpToPx(8), 0)
-            }
+            layoutParams =
+                LinearLayout.LayoutParams(dpToPx(120), LinearLayout.LayoutParams.WRAP_CONTENT)
+                    .apply {
+                        setMargins(dpToPx(8), 0, dpToPx(8), 0)
+                    }
             isClickable = true
             elevation = 4f
             setOnClickListener { open3DModel(name) }
@@ -1150,7 +1230,8 @@ class AiMasterDrawer(
         val thumbnailView = ImageView(context).apply {
             setImageResource(R.drawable.ic_ar)
             scaleType = ImageView.ScaleType.CENTER_CROP
-            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dpToPx(80))
+            layoutParams =
+                LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dpToPx(80))
         }
 
         val titleView = TextView(context).apply {
@@ -1162,7 +1243,10 @@ class AiMasterDrawer(
             ellipsize = TextUtils.TruncateAt.END
             gravity = Gravity.CENTER_HORIZONTAL
             setPadding(0, dpToPx(4), 0, 0)
-            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
         }
 
         cardLayout.addView(thumbnailView)
@@ -1173,7 +1257,10 @@ class AiMasterDrawer(
     private fun createSectionTitle(title: String): LinearLayout {
         val sectionLayout = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
-            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
                 setMargins(0, dpToPx(20), 0, dpToPx(12))
             }
             gravity = Gravity.CENTER_VERTICAL
@@ -1216,7 +1303,8 @@ class AiMasterDrawer(
 
     private fun addSpacer(height: Int = 20) {
         val spacer = View(context).apply {
-            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dpToPx(height))
+            layoutParams =
+                LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dpToPx(height))
         }
         resultsContainer.addView(spacer)
     }
@@ -1241,7 +1329,8 @@ class AiMasterDrawer(
                     dismiss()
                 } catch (e: Exception) {
                     Log.e("AiMasterDrawer", "Error adding image", e)
-                    Toast.makeText(context, "Error adding image: ${e.message}", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "Error adding image: ${e.message}", Toast.LENGTH_SHORT)
+                        .show()
                 }
             }
         }
@@ -1277,7 +1366,10 @@ class AiMasterDrawer(
 
         val horizontalContainer = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
-            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
         }
 
         val scrollView = HorizontalScrollView(context).apply {
@@ -1299,13 +1391,17 @@ class AiMasterDrawer(
         lastSearchData = null
         hasSearchResults = false
         isStreaming = false
+        currentCapturedImage = null // ✅ Clear the captured image
+        Log.d("AiMasterDrawer", "Cleared results and captured image")
     }
 
     fun dismiss() {
         isStreaming = false
         animatedBorderView.stopAnimation()
+        currentCapturedImage = null // ✅ Clear the captured image on dismiss
         dialog?.dismiss()
         dialog = null
+        Log.d("AiMasterDrawer", "Dismissed and cleared captured image")
     }
 
     // Custom View for Animated Gradient Border
@@ -1391,4 +1487,213 @@ class AiMasterDrawer(
             stopAnimation()
         }
     }
-}
+
+    /*
+    * Perform image search directly without showing dialog first
+    * Auto-selects Demo class, General subject, and Lesson Plan content type
+    */
+    fun performImageSearchDirectly(imageBase64: String) {
+        currentCapturedImage = imageBase64
+        lastSearchData = null
+        hasSearchResults = false
+
+        // Load class data if not already loaded
+        if (classesData.isEmpty()) {
+            loadClassData()
+        }
+
+        if (classesData.isEmpty()) {
+            Toast.makeText(context, "Unable to load class data", Toast.LENGTH_LONG).show()
+            return
+        }
+
+        // ✅ Find Miscellaneous class
+        val miscClass = classesData.find { it.Class.equals("Miscellaneous", ignoreCase = true) }
+        if (miscClass == null) {
+            Toast.makeText(context, "Miscellaneous class not found", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        // ✅ Find General subject - check if subjects exist first
+        val generalSubject = miscClass.subjects?.find { it.name.equals("General", ignoreCase = true) }
+        if (generalSubject == null) {
+            // If General not found, use the first available subject
+            val firstSubject = miscClass.subjects?.firstOrNull()
+            if (firstSubject == null) {
+                Toast.makeText(context, "No subjects found in Miscellaneous class", Toast.LENGTH_SHORT).show()
+                return
+            }
+
+            // ✅ Set default values
+            selectedClass = miscClass
+            selectedSubject = firstSubject
+            selectedOption = "Lesson Plan"
+
+            // ✅ Use actual class and subject names in the request
+            val requestData = JSONObject().apply {
+                put("className", miscClass.Class) // Use actual class name
+                put("subjectName", firstSubject.name) // Use actual subject name
+                put("contentType", selectedOption)
+                put("base64Image", currentCapturedImage!!)
+                put("mimeType", "image/png")
+            }
+
+            val requestJson = requestData.toString()
+            Log.d("AiMasterDrawer", "Using first available subject: ${firstSubject.name}")
+
+            // ✅ Show dialog with loading state
+            createAndShowDialogWithImageSearch()
+
+            // ✅ Make streaming API request
+            makeStreamingRequest(requestJson)
+        } else {
+            // ✅ Set default values
+            selectedClass = miscClass
+            selectedSubject = generalSubject
+            selectedOption = "Lesson Plan"
+
+            // ✅ Use actual class and subject names in the request
+            val requestData = JSONObject().apply {
+                put("className", miscClass.Class) // Use actual class name
+                put("subjectName", generalSubject.name) // Use actual subject name
+                put("contentType", selectedOption)
+                put("base64Image", currentCapturedImage!!)
+                put("mimeType", "image/png")
+            }
+
+            val requestJson = requestData.toString()
+
+            // Log a sample of the request
+            try {
+                val sampleRequest = JSONObject().apply {
+                    put("className", requestData.getString("className"))
+                    put("subjectName", requestData.getString("subjectName"))
+                    put("contentType", requestData.getString("contentType"))
+                    put("mimeType", requestData.getString("mimeType"))
+                    put(
+                        "base64Image",
+                        "${currentCapturedImage!!.take(100)}... (${currentCapturedImage!!.length} chars)"
+                    )
+                }
+                Log.d("AiMasterDrawer", "Request preview: $sampleRequest")
+            } catch (e: Exception) {
+                Log.e("AiMasterDrawer", "Error creating request preview", e)
+            }
+
+            // ✅ Show dialog with loading state
+            createAndShowDialogWithImageSearch()
+
+            // ✅ Make streaming API request
+            makeStreamingRequest(requestJson)
+        }
+    }
+
+    /*
+    * Create and show dialog specifically for image search
+    * Pre-fills selections and starts with loading skeleton
+    */
+    private fun createAndShowDialogWithImageSearch() {
+        dialog = Dialog(context, R.style.CustomCenteredDialog)
+        dialog?.requestWindowFeature(Window.FEATURE_NO_TITLE)
+
+        val view = LayoutInflater.from(context).inflate(R.layout.dialog_ai_master, null)
+        dialogView = view
+
+        // Create and add the animated border view as an overlay
+        animatedBorderView = AnimatedGradientBorderView(context)
+        val borderContainer = FrameLayout(context).apply {
+            addView(view)
+            addView(
+                animatedBorderView, FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT
+                )
+            )
+        }
+
+        setupViews(view)
+        setupSpinners()
+
+        // Use coroutine to ensure proper sequencing
+        coroutineScope.launch {
+            // Small delay to ensure UI is ready
+            delay(50)
+
+            withContext(Dispatchers.Main) {
+                // ✅ Force select Miscellaneous class
+                val miscIndex = classesData.indexOfFirst { it.Class.equals("Miscellaneous", ignoreCase = true) }
+                if (miscIndex != -1) {
+                    classSpinner.setSelection(miscIndex + 1)
+
+                    // Manually trigger the class selection listener
+                    selectedClass = classesData[miscIndex]
+                    setupSubjectSpinner()
+
+                    // Small delay for subject spinner to update
+                    delay(50)
+
+                    // ✅ Force select the subject
+                    val targetSubject = selectedClass?.subjects?.find { it.name.equals("General", ignoreCase = true) }
+                        ?: selectedClass?.subjects?.firstOrNull()
+
+                    if (targetSubject != null) {
+                        // Get the current subject names from the spinner
+                        val subjectAdapter = subjectSpinner.adapter
+                        for (i in 0 until subjectAdapter.count) {
+                            val item = subjectAdapter.getItem(i) as? String
+                            if (item != null && item.equals(targetSubject.name, ignoreCase = true)) {
+                                subjectSpinner.setSelection(i)
+                                selectedSubject = targetSubject
+                                Log.d("AiMasterDrawer", "Auto-selected subject: ${targetSubject.name}")
+                                break
+                            }
+                        }
+                    }
+                }
+
+                // ✅ Force select Lesson Plan option
+                val lessonPlanIndex = options.indexOfFirst { it.equals("Lesson Plan", ignoreCase = true) }
+                if (lessonPlanIndex != -1) {
+                    optionSpinner.setSelection(lessonPlanIndex + 1)
+                }
+
+                showLoadingSkeleton()
+                animatedBorderView.startAnimation()
+            }
+        }
+
+        dialog?.setContentView(borderContainer)
+
+        dialog?.window?.let { window ->
+            window.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+
+            val displayMetrics = context.resources.displayMetrics
+            val configuration = context.resources.configuration
+            val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+
+            val dialogWidth = (550 * displayMetrics.density).toInt()
+            val dialogHeight = (displayMetrics.heightPixels * 0.80).toInt()
+
+            val layoutParams = window.attributes
+            layoutParams.width = dialogWidth
+            layoutParams.height = dialogHeight
+            layoutParams.gravity =
+                if (isLandscape) Gravity.CENTER else Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+            layoutParams.dimAmount = 0.6f
+            window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+            window.attributes = layoutParams
+        }
+
+        dialog?.setCancelable(true)
+        dialog?.setCanceledOnTouchOutside(true)
+
+        // ✅ Add dismiss listener to clear current image
+        dialog?.setOnDismissListener {
+            Log.d("AiMasterDrawer", "Dialog dismissed, clearing current captured image")
+            currentCapturedImage = null
+        }
+
+        dialog?.show()
+
+        Log.d("AiMasterDrawer", "Dialog shown with image search configuration")
+    }}
