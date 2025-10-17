@@ -5,12 +5,15 @@ import android.content.Context
 import android.graphics.Color
 import android.util.AttributeSet
 import android.view.Choreographer
+import android.view.MotionEvent
+import android.view.ScaleGestureDetector
 import android.view.SurfaceView
 import android.widget.TextView
 import android.widget.LinearLayout
 import android.widget.ImageView
 import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
+import android.view.ViewGroup
 import com.google.android.filament.View
 import com.google.android.filament.android.UiHelper
 import com.google.android.filament.utils.AutomationEngine
@@ -23,7 +26,8 @@ import android.graphics.PixelFormat
 import com.infusory.tutarapp.ui.data.ModelData
 import com.infusory.tutarapp.utils.ModelDecryptionUtil
 import java.io.File
-import java.io.FileInputStream
+import kotlin.math.pow
+import kotlin.math.sqrt
 
 class Container3D @JvmOverloads constructor(
     context: Context,
@@ -80,6 +84,59 @@ class Container3D @JvmOverloads constructor(
     private var controlsVisible = true
     private val FADE_DURATION = 300L
 
+    // Enhanced drag and resize from second code
+    private var lastX = 0f
+    private var lastY = 0f
+    private var isDragging = false
+    private var isResizing = false
+    private var isPinching = false
+    private var activeCorner = Corner.NONE
+    private val resizeHandleSize = 24f
+    private val resizeHitArea = 50f
+    private var initialWidth = 0
+    private var initialHeight = 0
+    private var scaleFactor = 1f
+    private var initialDistance = 0f
+    private var currentDistance = 0f
+    private var isHandling3DTouch = false
+
+    enum class Corner {
+        NONE, TOP_LEFT, TOP_RIGHT, BOTTOM_LEFT, BOTTOM_RIGHT
+    }
+
+    // ScaleGestureDetector for pinch-to-zoom
+    private val scaleGestureDetector = ScaleGestureDetector(context, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+        override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
+            isPinching = true
+            initialWidth = width
+            initialHeight = height
+            scaleFactor = 1f
+            return true
+        }
+
+        override fun onScale(detector: ScaleGestureDetector): Boolean {
+            scaleFactor *= detector.scaleFactor
+            scaleFactor = scaleFactor.coerceIn(0.5f, 3.0f)
+
+            val params = layoutParams
+            val newWidth = (initialWidth * scaleFactor).toInt()
+            val newHeight = (initialHeight * scaleFactor).toInt()
+
+            if (newWidth >= 200 && newHeight >= 150) {
+                params.width = newWidth
+                params.height = newHeight
+                layoutParams = params
+            }
+            return true
+        }
+
+        override fun onScaleEnd(detector: ScaleGestureDetector) {
+            isPinching = false
+            scaleFactor = 1f
+            initialDistance = 0f
+        }
+    })
+
     init {
         // Disable background for main container since content container will have it
         showBackground = false
@@ -113,34 +170,43 @@ class Container3D @JvmOverloads constructor(
 
     private fun updateTouchHandling() {
         surfaceView?.let { surface ->
-            // Always handle touch for auto-hide, but only interact with model if enabled
-            surface.setOnTouchListener { _, event ->
-                // Show controls on any interaction
-                if (event.action == android.view.MotionEvent.ACTION_DOWN) {
-                    onInteractionStart()
-                }
-
-                // Let model handle touch if enabled
-                val handled = if (touchEnabled && !passThroughTouches) {
+            if (touchEnabled && !passThroughTouches) {
+                // When interaction is enabled, intercept touches for 3D manipulation
+                surface.setOnTouchListener { _, event ->
                     modelViewer?.onTouchEvent(event)
+                    // Mark that we're handling 3D touch to prevent container manipulation
+                    isHandling3DTouch = event.action != MotionEvent.ACTION_UP &&
+                            event.action != MotionEvent.ACTION_CANCEL
+
+                    // Show controls on interaction
+                    if (event.action == MotionEvent.ACTION_DOWN) {
+                        onInteractionStart()
+                    } else if (event.action == MotionEvent.ACTION_UP ||
+                        event.action == MotionEvent.ACTION_CANCEL) {
+                        onInteractionEnd()
+                    }
                     true
-                } else {
+                }
+                surface.isClickable = true
+                surface.isFocusable = true
+                surface.isFocusableInTouchMode = true
+            } else {
+                // When interaction is disabled, allow touches to pass through to container
+                surface.setOnTouchListener { _, event ->
+                    // Show controls on any interaction
+                    if (event.action == MotionEvent.ACTION_DOWN) {
+                        onInteractionStart()
+                    } else if (event.action == MotionEvent.ACTION_UP ||
+                        event.action == MotionEvent.ACTION_CANCEL) {
+                        onInteractionEnd()
+                    }
                     false
                 }
-
-                // Schedule auto-hide when interaction ends
-                if (event.action == android.view.MotionEvent.ACTION_UP ||
-                    event.action == android.view.MotionEvent.ACTION_CANCEL) {
-                    onInteractionEnd()
-                }
-
-                handled
+                surface.isClickable = false
+                surface.isFocusable = false
+                surface.isFocusableInTouchMode = false
+                isHandling3DTouch = false
             }
-
-            // Set clickable state based on touch enabled
-            surface.isClickable = touchEnabled && !passThroughTouches
-            surface.isFocusable = touchEnabled && !passThroughTouches
-            surface.isFocusableInTouchMode = touchEnabled && !passThroughTouches
         }
     }
 
@@ -258,11 +324,11 @@ class Container3D @JvmOverloads constructor(
         controlsContainer = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
             layoutParams = LinearLayout.LayoutParams(
-                dpToPx(48),
+                ViewGroup.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.MATCH_PARENT
             )
-            setPadding(dpToPx(4), dpToPx(4), dpToPx(4), dpToPx(4))
-            gravity = Gravity.TOP
+            setPadding(0, 0, 0, 0)
+            gravity = Gravity.TOP or Gravity.END
         }
 
         contentContainer = android.widget.FrameLayout(context).apply {
@@ -272,7 +338,7 @@ class Container3D @JvmOverloads constructor(
                 1f
             )
             setBackgroundResource(R.drawable.dotted_border_background)
-            setPadding(dpToPx(2), dpToPx(2), dpToPx(2), dpToPx(2))
+            setPadding(0, dpToPx(2), dpToPx(2), dpToPx(2))
         }
 
         addControlButtonsToSide()
@@ -287,7 +353,7 @@ class Container3D @JvmOverloads constructor(
         controlsContainer?.let { container ->
 
             val interactionButton = createSideControlButton(
-                android.R.drawable.ic_menu_rotate,
+                R.drawable.ic_interact,
                 "Toggle Interaction"
             ) {
                 onInteractionStart()
@@ -300,7 +366,7 @@ class Container3D @JvmOverloads constructor(
             container.addView(createSpacer())
 
             animationToggleButton = createSideControlButton(
-                android.R.drawable.ic_media_play,
+                R.drawable.ic_play_animation,
                 "Toggle Animation"
             ) {
                 onInteractionStart()
@@ -313,7 +379,7 @@ class Container3D @JvmOverloads constructor(
             container.addView(createSpacer())
 
             val closeButton = createSideControlButton(
-                android.R.drawable.ic_menu_close_clear_cancel,
+                R.drawable.ic_close_white,
                 "Close"
             ) {
                 onInteractionStart()
@@ -327,7 +393,7 @@ class Container3D @JvmOverloads constructor(
     private fun createSideControlButton(iconRes: Int, tooltip: String, onClick: () -> Unit): ImageView {
         return ImageView(context).apply {
             layoutParams = LinearLayout.LayoutParams(dpToPx(32), dpToPx(32)).apply {
-                setMargins(dpToPx(4), dpToPx(4), dpToPx(4), dpToPx(4))
+                setMargins(0, dpToPx(2), 0, dpToPx(2))
             }
             setImageResource(iconRes)
             background = GradientDrawable().apply {
@@ -366,7 +432,7 @@ class Container3D @JvmOverloads constructor(
         return android.view.View(context).apply {
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
-                dpToPx(2)
+                dpToPx(0)
             )
         }
     }
@@ -381,7 +447,6 @@ class Container3D @JvmOverloads constructor(
 
                 holder.setFormat(PixelFormat.TRANSLUCENT)
                 setZOrderOnTop(true)
-//                setZOrderMediaOverlay(true)
             }
 
             uiHelper = UiHelper(UiHelper.ContextErrorPolicy.DONT_CHECK).apply {
@@ -505,18 +570,15 @@ class Container3D @JvmOverloads constructor(
 
     private fun loadModelFromAssets(filename: String): ByteBuffer? {
         return try {
-            // Extract actual filename by removing path prefix (e.g., "production/")
             val actualFilename = filename.substringAfterLast('/')
             android.util.Log.d("Container3D", "Loading model - Original: $filename, Extracted: $actualFilename")
 
-            // Try internal storage first
             val encryptedModelsDir = File(context.filesDir, "encrypted_models")
             val modelFile = File(encryptedModelsDir, actualFilename)
 
             if (modelFile.exists() && modelFile.canRead()) {
                 android.util.Log.d("Container3D", "Found encrypted model: ${modelFile.absolutePath}")
 
-                // Decrypt the model using utility
                 val decryptedBuffer = ModelDecryptionUtil.decryptModelFile(modelFile)
                 if (decryptedBuffer != null) {
                     return decryptedBuffer
@@ -525,21 +587,18 @@ class Container3D @JvmOverloads constructor(
                 }
             }
 
-            // Try external storage
             val externalModelsDir = File(context.getExternalFilesDir(null), "encrypted_models")
             val externalModelFile = File(externalModelsDir, actualFilename)
 
             if (externalModelFile.exists() && externalModelFile.canRead()) {
                 android.util.Log.d("Container3D", "Found encrypted model in external storage: ${externalModelFile.absolutePath}")
 
-                // Decrypt the model using utility
                 val decryptedBuffer = ModelDecryptionUtil.decryptModelFile(externalModelFile)
                 if (decryptedBuffer != null) {
                     return decryptedBuffer
                 }
             }
 
-            // Fallback to assets (unencrypted)
             android.util.Log.w("Container3D", "Model not found in storage, trying assets: $actualFilename")
             tryLoadFromAssets(actualFilename)
 
@@ -549,7 +608,6 @@ class Container3D @JvmOverloads constructor(
             tryLoadFromAssets(actualFilename)
         }
     }
-
 
     private fun tryLoadFromAssets(filename: String): ByteBuffer? {
         return try {
@@ -569,15 +627,6 @@ class Container3D @JvmOverloads constructor(
                 null
             }
         }
-    }
-
-    private fun ensureEncryptedModelsDirectory(): File {
-        val encryptedModelsDir = File(context.filesDir, "encrypted_models")
-        if (!encryptedModelsDir.exists()) {
-            encryptedModelsDir.mkdirs()
-            android.util.Log.d("Container3D", "Created encrypted_models directory: ${encryptedModelsDir.absolutePath}")
-        }
-        return encryptedModelsDir
     }
 
     private fun createBufferFromStream(inputStream: java.io.InputStream): ByteBuffer {
@@ -722,6 +771,201 @@ class Container3D @JvmOverloads constructor(
         }
     }
 
+    // Helper methods from second code for better drag/resize
+    private fun getDistance(event: MotionEvent): Float {
+        if (event.pointerCount < 2) return 0f
+        val dx = event.getX(0) - event.getX(1)
+        val dy = event.getY(0) - event.getY(1)
+        return sqrt(dx * dx + dy * dy)
+    }
+
+    private fun getCornerAtPosition(x: Float, y: Float): Corner {
+        // Check top-left corner
+        val distanceTopLeft = sqrt(
+            (x - resizeHandleSize / 2).toDouble().pow(2.0) +
+                    (y - resizeHandleSize / 2).toDouble().pow(2.0)
+        ).toFloat()
+        if (distanceTopLeft <= resizeHitArea) return Corner.TOP_LEFT
+
+        // Check top-right corner
+        val distanceTopRight = sqrt(
+            (x - (width - resizeHandleSize / 2)).toDouble().pow(2.0) +
+                    (y - resizeHandleSize / 2).toDouble().pow(2.0)
+        ).toFloat()
+        if (distanceTopRight <= resizeHitArea) return Corner.TOP_RIGHT
+
+        // Check bottom-left corner
+        val distanceBottomLeft = sqrt(
+            (x - resizeHandleSize / 2).toDouble().pow(2.0) +
+                    (y - (height - resizeHandleSize / 2)).toDouble().pow(2.0)
+        ).toFloat()
+        if (distanceBottomLeft <= resizeHitArea) return Corner.BOTTOM_LEFT
+
+        // Check bottom-right corner
+        val distanceBottomRight = sqrt(
+            (x - (width - resizeHandleSize / 2)).toDouble().pow(2.0) +
+                    (y - (height - resizeHandleSize / 2)).toDouble().pow(2.0)
+        ).toFloat()
+        if (distanceBottomRight <= resizeHitArea) return Corner.BOTTOM_RIGHT
+
+        return Corner.NONE
+    }
+
+    // Override onTouchEvent with better logic from second code
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        // If we're currently handling 3D touch, don't allow container manipulation
+        if (isHandling3DTouch && touchEnabled && !passThroughTouches) {
+            when (event.action) {
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    isHandling3DTouch = false
+                }
+            }
+            return true
+        }
+
+        // Handle scale gestures
+        scaleGestureDetector.onTouchEvent(event)
+
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                if (event.pointerCount == 1) {
+                    lastX = event.rawX
+                    lastY = event.rawY
+
+                    val touchX = event.x
+                    val touchY = event.y
+                    activeCorner = getCornerAtPosition(touchX, touchY)
+
+                    isResizing = activeCorner != Corner.NONE
+                    isDragging = !isResizing && !isPinching
+
+                    bringToFront()
+                    onInteractionStart()
+                }
+                return true
+            }
+
+            MotionEvent.ACTION_POINTER_DOWN -> {
+                if (event.pointerCount == 2) {
+                    isPinching = true
+                    isDragging = false
+                    isResizing = false
+                    initialWidth = width
+                    initialHeight = height
+                    initialDistance = getDistance(event)
+                    scaleFactor = 1f
+                    onInteractionStart()
+                }
+                return true
+            }
+
+            MotionEvent.ACTION_MOVE -> {
+                if (isPinching && event.pointerCount >= 2) {
+                    currentDistance = getDistance(event)
+                    if (initialDistance > 0) {
+                        val scale = currentDistance / initialDistance
+                        scaleFactor = scale.coerceIn(0.5f, 3.0f)
+
+                        val params = layoutParams
+                        val newWidth = (initialWidth * scaleFactor).toInt()
+                        val newHeight = (initialHeight * scaleFactor).toInt()
+
+                        if (newWidth >= 200 && newHeight >= 150) {
+                            params.width = newWidth
+                            params.height = newHeight
+                            layoutParams = params
+                        }
+                    }
+                } else if (event.pointerCount == 1 && !isPinching) {
+                    val deltaX = event.rawX - lastX
+                    val deltaY = event.rawY - lastY
+
+                    if (isDragging) {
+                        val params = layoutParams as ViewGroup.MarginLayoutParams
+                        params.leftMargin = (params.leftMargin + deltaX).toInt()
+                        params.topMargin = (params.topMargin + deltaY).toInt()
+                        layoutParams = params
+                    } else if (isResizing) {
+                        val params = layoutParams
+                        var newWidth = params.width
+                        var newHeight = params.height
+                        var newLeftMargin = (params as ViewGroup.MarginLayoutParams).leftMargin
+                        var newTopMargin = params.topMargin
+
+                        when (activeCorner) {
+                            Corner.TOP_LEFT -> {
+                                newWidth = (params.width - deltaX).toInt()
+                                newHeight = (params.height - deltaY).toInt()
+                                newLeftMargin = (params.leftMargin + deltaX).toInt()
+                                newTopMargin = (params.topMargin + deltaY).toInt()
+                            }
+                            Corner.TOP_RIGHT -> {
+                                newWidth = (params.width + deltaX).toInt()
+                                newHeight = (params.height - deltaY).toInt()
+                                newTopMargin = (params.topMargin + deltaY).toInt()
+                            }
+                            Corner.BOTTOM_LEFT -> {
+                                newWidth = (params.width - deltaX).toInt()
+                                newHeight = (params.height + deltaY).toInt()
+                                newLeftMargin = (params.leftMargin + deltaX).toInt()
+                            }
+                            Corner.BOTTOM_RIGHT -> {
+                                newWidth = (params.width + deltaX).toInt()
+                                newHeight = (params.height + deltaY).toInt()
+                            }
+                            Corner.NONE -> {}
+                        }
+
+                        if (newWidth >= 200 && newHeight >= 150) {
+                            params.width = newWidth
+                            params.height = newHeight
+                            params.leftMargin = newLeftMargin
+                            params.topMargin = newTopMargin
+                            layoutParams = params
+                        }
+                    }
+
+                    lastX = event.rawX
+                    lastY = event.rawY
+                }
+                return true
+            }
+
+            MotionEvent.ACTION_UP -> {
+                isDragging = false
+                isResizing = false
+                isPinching = false
+                activeCorner = Corner.NONE
+                initialDistance = 0f
+                scaleFactor = 1f
+                isHandling3DTouch = false
+                onInteractionEnd()
+                return true
+            }
+
+            MotionEvent.ACTION_POINTER_UP -> {
+                if (event.pointerCount <= 2) {
+                    isPinching = false
+                    initialDistance = 0f
+                    scaleFactor = 1f
+                }
+                return true
+            }
+
+            MotionEvent.ACTION_CANCEL -> {
+                isDragging = false
+                isResizing = false
+                isPinching = false
+                activeCorner = Corner.NONE
+                initialDistance = 0f
+                isHandling3DTouch = false
+                onInteractionEnd()
+                return true
+            }
+        }
+        return super.onTouchEvent(event)
+    }
+
     private fun createFallbackView(): android.view.View {
         return LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
@@ -788,11 +1032,13 @@ class Container3D @JvmOverloads constructor(
 
     private fun toggleInteraction() {
         if (touchEnabled) {
+            autoHideEnabled=true;
             setTouchEnabled(false)
             setPassThroughTouches(true)
             android.widget.Toast.makeText(context, "Interaction disabled", android.widget.Toast.LENGTH_SHORT).show()
         } else {
             setTouchEnabled(true)
+            autoHideEnabled=false;
             setPassThroughTouches(false)
             android.widget.Toast.makeText(context, "Interaction enabled", android.widget.Toast.LENGTH_SHORT).show()
         }
@@ -809,36 +1055,17 @@ class Container3D @JvmOverloads constructor(
 
         if (isAnimationPaused) {
             pausedAnimationTime = ((System.nanoTime() - animationStartTime).toDouble() / 1000000000).toFloat()
-            animationToggleButton?.setImageResource(android.R.drawable.ic_media_play)
+            // Try to use ic_pause_animation if available, fallback to ic_play_animation
+            try {
+                animationToggleButton?.setImageResource(R.drawable.ic_play_animation)
+            } catch (e: Exception) {
+                animationToggleButton?.setImageResource(R.drawable.ic_pause_animation)
+            }
             android.widget.Toast.makeText(context, "Animation paused", android.widget.Toast.LENGTH_SHORT).show()
         } else {
             animationStartTime = System.nanoTime() - (pausedAnimationTime * 1000000000).toLong()
-            animationToggleButton?.setImageResource(android.R.drawable.ic_media_pause)
+            animationToggleButton?.setImageResource(R.drawable.ic_pause_animation)
             android.widget.Toast.makeText(context, "Animation playing", android.widget.Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    private fun show3DMenu() {
-        toggleRendering()
-    }
-
-    private fun resetView() {
-        modelViewer?.transformToUnitCube()
-        android.widget.Toast.makeText(context, "View reset", android.widget.Toast.LENGTH_SHORT).show()
-    }
-
-    private fun showPerformanceStats() {
-        val fps = if (isRenderingActive) "~60 FPS (optimized)" else "Paused"
-        android.widget.Toast.makeText(context, "Performance: $fps", android.widget.Toast.LENGTH_SHORT).show()
-    }
-
-    private fun toggleRendering() {
-        if (isRenderingActive) {
-            stopRendering()
-            android.widget.Toast.makeText(context, "Rendering paused", android.widget.Toast.LENGTH_SHORT).show()
-        } else {
-            startRendering()
-            android.widget.Toast.makeText(context, "Rendering resumed", android.widget.Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -850,7 +1077,7 @@ class Container3D @JvmOverloads constructor(
                 currentAnimationDuration = getAnimationDuration(animationIndex)
                 pausedAnimationTime = 0f
                 isAnimationPaused = false
-                animationToggleButton?.setImageResource(android.R.drawable.ic_media_pause)
+                animationToggleButton?.setImageResource(R.drawable.ic_play_animation)
             }
         }
     }
@@ -927,11 +1154,15 @@ class Container3D @JvmOverloads constructor(
         if (isInitialized && !isRenderingActive) {
             startRendering()
         }
-        animationToggleButton?.setImageResource(
-            if (isAnimationPaused) android.R.drawable.ic_media_play else android.R.drawable.ic_media_pause
-        )
+        // Update animation button icon based on state
+        try {
+            animationToggleButton?.setImageResource(
+                if (isAnimationPaused) R.drawable.ic_play_animation else R.drawable.ic_pause_animation
+            )
+        } catch (e: Exception) {
+            animationToggleButton?.setImageResource(R.drawable.ic_pause_animation)
+        }
 
-        // Restart auto-hide timer when reattached
         if (autoHideEnabled) {
             scheduleAutoHide()
         }
@@ -1005,7 +1236,6 @@ class Container3D @JvmOverloads constructor(
             if (it is Boolean) {
                 controlsVisible = it
                 if (!controlsVisible) {
-                    // Apply hidden state immediately
                     sideControlButtons.forEach { button ->
                         button.alpha = 0f
                     }
@@ -1014,8 +1244,12 @@ class Container3D @JvmOverloads constructor(
             }
         }
 
-        animationToggleButton?.setImageResource(
-            if (isAnimationPaused) android.R.drawable.ic_media_play else android.R.drawable.ic_media_pause
-        )
+        try {
+            animationToggleButton?.setImageResource(
+                if (isAnimationPaused) R.drawable.ic_play_animation else R.drawable.ic_pause_animation
+            )
+        } catch (e: Exception) {
+            animationToggleButton?.setImageResource(R.drawable.ic_play_animation)
+        }
     }
 }
