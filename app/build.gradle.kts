@@ -95,6 +95,7 @@ dependencies {
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
     implementation("com.otaliastudios:zoomlayout:1.9.0")
+    implementation ("com.pierfrancescosoffritti.androidyoutubeplayer:core:12.1.0")
 
     implementation("com.google.android.filament:filament-utils-android:1.43.1")
     implementation("com.google.android.filament:filament-android:1.43.1")
@@ -107,4 +108,5 @@ dependencies {
     implementation("androidx.camera:camera-view:1.3.0")
     implementation("com.squareup.okhttp3:okhttp:4.11.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+    implementation(kotlin("script-runtime"))
 }

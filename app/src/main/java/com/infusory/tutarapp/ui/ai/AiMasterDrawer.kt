@@ -40,7 +40,9 @@ import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.infusory.tutarapp.R
 import com.infusory.tutarapp.ui.data.ClassData
+import com.infusory.tutarapp.ui.data.ModelData
 import com.infusory.tutarapp.ui.data.SubjectData
+import com.infusory.tutarapp.ui.data.TopicData
 import com.infusory.tutarapp.ui.whiteboard.WhiteboardActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -121,33 +123,47 @@ class AiMasterDrawer(
 
     private fun loadClassData() {
         try {
-            val gson = Gson()
-            val listType = object : TypeToken<List<ClassData>>() {}.type
-
             try {
-                val inputStream = context.assets.open("class_list_demo.json")
+                val inputStream = context.assets.open("class_data.json")
                 val jsonString = inputStream.bufferedReader().use { it.readText() }
                 inputStream.close()
 
-                classesData = gson.fromJson(jsonString, listType)
-                return
+                classesData = normalizeClassData(jsonString)
+                if (classesData.isNotEmpty()) {
+                    Log.d("AiMasterDrawer", "Loaded production data: ${classesData.size} classes")
+                    return
+                }
             } catch (e: Exception) {
-                Log.d("AiMasterDrawer", "Failed to load from assets, trying other locations...")
+                Log.e("AiMasterDrawer", "Production data not available: ${e.message}")
             }
-
-            val internalFile = File(context.filesDir, "class_data.json")
-            if (internalFile.exists()) {
-                val fileReader = FileReader(internalFile)
-                classesData = gson.fromJson(fileReader, listType)
-                fileReader.close()
-                return
-            }
-
-            classesData = emptyList()
-
         } catch (e: Exception) {
-            Log.e("AiMasterDrawer", "Error loading class data: ${e.message}", e)
+            Log.e("AiMasterDrawer", "Critical error loading class data: ${e.message}", e)
             classesData = emptyList()
+        }
+    }
+
+    private fun normalizeClassData(jsonString: String): List<ClassData> {
+        return try {
+            val gson = Gson()
+            val listType = object : TypeToken<List<ClassData>>() {}.type
+            val rawData = gson.fromJson<List<ClassData>>(jsonString, listType)
+
+            rawData.filter { it.Class != null }.map { classData ->
+                val normalizedSubjects = classData.subjects?.map { subject ->
+                    when {
+                        subject.topics != null -> subject // Production structure
+//                        subject.models != null -> SubjectData( // Demo structure
+//                            name = subject.name,
+//                            topics = listOf(TopicData(name = subject.name, models = subject.models))
+//                        )
+                        else -> SubjectData(name = subject.name, topics = emptyList())
+                    }
+                }
+                classData.copy(subjects = normalizedSubjects)
+            }
+        } catch (e: Exception) {
+            Log.e("AiMasterDrawer", "Normalization failed: ${e.message}")
+            emptyList()
         }
     }
 
@@ -788,7 +804,14 @@ class AiMasterDrawer(
                     delay(100)
                 }
             }
-
+            if (data.has("videos")) {
+                val videos = data.getJSONArray("videos")
+                if (videos.length() > 0) {
+                    withContext(Dispatchers.Main) {
+                        displayVideos(videos)
+                    }
+                }
+            }
             if (data.has("images")) {
                 val images = data.getJSONArray("images")
                 if (images.length() > 0) {
@@ -799,14 +822,7 @@ class AiMasterDrawer(
                 }
             }
 
-            if (data.has("videos")) {
-                val videos = data.getJSONArray("videos")
-                if (videos.length() > 0) {
-                    withContext(Dispatchers.Main) {
-                        displayVideos(videos)
-                    }
-                }
-            }
+
         }
     }
 
@@ -1076,10 +1092,14 @@ class AiMasterDrawer(
         addSpacer(5)
     }
 
+    private fun getModelsForSubject(subject: SubjectData?): List<ModelData> {
+        return subject?.topics?.flatMap { it.models ?: emptyList() } ?: emptyList()
+    }
+
     private fun display3DModels(names: JSONArray) {
         val sectionTitle = createSectionTitle("3D Models")
         resultsContainer.addView(sectionTitle)
-
+        val models = getModelsForSubject(selectedSubject)
         val horizontalContainer = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             layoutParams = LinearLayout.LayoutParams(
@@ -1103,17 +1123,6 @@ class AiMasterDrawer(
         addSpacer(5)
     }
 
-    private fun addYouTubeContainerToWhiteboard(videoId: String) {
-        try {
-            val youtubeUrl = "https://www.youtube.com/watch?v=$videoId"
-            activity.addYouTubeContainerWithUrl(youtubeUrl)
-            dismiss()
-            Toast.makeText(context, "YouTube video added to canvas", Toast.LENGTH_SHORT).show()
-        } catch (e: Exception) {
-            Log.e("AiMasterDrawer", "Error adding YouTube container", e)
-            Toast.makeText(context, "Error adding video: ${e.message}", Toast.LENGTH_SHORT).show()
-        }
-    }
 
     private fun createVideoCard(videoId: String, thumbnail: String, title: String): LinearLayout {
         val cardLayout = LinearLayout(context).apply {
@@ -1128,7 +1137,13 @@ class AiMasterDrawer(
             isClickable = true
             elevation = 4f
             setOnClickListener {
-                addYouTubeContainerToWhiteboard(videoId)
+                // Use the manager's method to add YouTube container with URL and search
+                val youtubeUrl = if (videoId.startsWith("http")) {
+                    videoId
+                } else {
+                    "https://www.youtube.com/watch?v=$videoId"
+                }
+                activity.addYouTubeContainerWithUrl(youtubeUrl)
             }
         }
 
@@ -1176,6 +1191,23 @@ class AiMasterDrawer(
 
         thumbnailContainer.addView(thumbnailView)
         thumbnailContainer.addView(playIcon)
+
+        // Add title if available
+//        if (title.isNotEmpty() && title != "Video ${videos.length()}") {
+//            val titleView = TextView(context).apply {
+//                text = title
+//                textSize = 12f
+//                setTextColor(Color.WHITE)
+//                maxLines = 2
+//                ellipsize = TextUtils.TruncateAt.END
+//                setPadding(0, dpToPx(4), 0, 0)
+//                layoutParams = LinearLayout.LayoutParams(
+//                    LinearLayout.LayoutParams.MATCH_PARENT,
+//                    LinearLayout.LayoutParams.WRAP_CONTENT
+//                )
+//            }
+//            cardLayout.addView(titleView)
+//        }
 
         cardLayout.addView(thumbnailContainer)
         return cardLayout
@@ -1462,7 +1494,6 @@ class AiMasterDrawer(
     * Auto-selects Demo class, General subject, and Lesson Plan content type
     */
     fun performImageSearchDirectly(imageBase64: String) {
-
         currentCapturedImage = imageBase64
         lastSearchData = null
         hasSearchResults = false
@@ -1477,58 +1508,85 @@ class AiMasterDrawer(
             return
         }
 
-        // ✅ Find Demo class
-        val demoClass = classesData.find { it.Class.equals("Demo", ignoreCase = true) }
-        if (demoClass == null) {
-            Toast.makeText(context, "Demo class not found", Toast.LENGTH_SHORT).show()
+        // ✅ Find Miscellaneous class
+        val miscClass = classesData.find { it.Class.equals("Miscellaneous", ignoreCase = true) }
+        if (miscClass == null) {
+            Toast.makeText(context, "Miscellaneous class not found", Toast.LENGTH_SHORT).show()
             return
         }
 
-        // ✅ Find General subject
-        val generalSubject =
-            demoClass.subjects?.find { it.name.equals("General", ignoreCase = true) }
+        // ✅ Find General subject - check if subjects exist first
+        val generalSubject = miscClass.subjects?.find { it.name.equals("General", ignoreCase = true) }
         if (generalSubject == null) {
-            Toast.makeText(context, "General subject not found", Toast.LENGTH_SHORT).show()
-            return
-        }
-
-        // ✅ Set default values
-        selectedClass = demoClass
-        selectedSubject = generalSubject
-        selectedOption = "Lesson Plan"
-
-        // ✅ CRITICAL FIX: Use "mimeType" instead of "imageType"
-        val requestData = JSONObject().apply {
-            put("className", "Demo")
-            put("subjectName", "General")
-            put("contentType", selectedOption)
-            put("base64Image", currentCapturedImage!!)
-            put("mimeType", "image/png")
-        }
-
-        val requestJson = requestData.toString()
-        // Log a sample of the request (without full base64 to avoid spam)
-        try {
-            val sampleRequest = JSONObject().apply {
-                put("className", requestData.getString("className"))
-                put("subjectName", requestData.getString("subjectName"))
-                put("contentType", requestData.getString("contentType"))
-                put("mimeType", requestData.getString("mimeType"))
-                put(
-                    "base64Image",
-                    "${currentCapturedImage!!.take(100)}... (${currentCapturedImage!!.length} chars)"
-                )
+            // If General not found, use the first available subject
+            val firstSubject = miscClass.subjects?.firstOrNull()
+            if (firstSubject == null) {
+                Toast.makeText(context, "No subjects found in Miscellaneous class", Toast.LENGTH_SHORT).show()
+                return
             }
-            Log.d("AiMasterDrawer", "Request preview: $sampleRequest")
-        } catch (e: Exception) {
-            Log.e("AiMasterDrawer", "Error creating request preview", e)
+
+            // ✅ Set default values
+            selectedClass = miscClass
+            selectedSubject = firstSubject
+            selectedOption = "Lesson Plan"
+
+            // ✅ Use actual class and subject names in the request
+            val requestData = JSONObject().apply {
+                put("className", miscClass.Class) // Use actual class name
+                put("subjectName", firstSubject.name) // Use actual subject name
+                put("contentType", selectedOption)
+                put("base64Image", currentCapturedImage!!)
+                put("mimeType", "image/png")
+            }
+
+            val requestJson = requestData.toString()
+            Log.d("AiMasterDrawer", "Using first available subject: ${firstSubject.name}")
+
+            // ✅ Show dialog with loading state
+            createAndShowDialogWithImageSearch()
+
+            // ✅ Make streaming API request
+            makeStreamingRequest(requestJson)
+        } else {
+            // ✅ Set default values
+            selectedClass = miscClass
+            selectedSubject = generalSubject
+            selectedOption = "Lesson Plan"
+
+            // ✅ Use actual class and subject names in the request
+            val requestData = JSONObject().apply {
+                put("className", miscClass.Class) // Use actual class name
+                put("subjectName", generalSubject.name) // Use actual subject name
+                put("contentType", selectedOption)
+                put("base64Image", currentCapturedImage!!)
+                put("mimeType", "image/png")
+            }
+
+            val requestJson = requestData.toString()
+
+            // Log a sample of the request
+            try {
+                val sampleRequest = JSONObject().apply {
+                    put("className", requestData.getString("className"))
+                    put("subjectName", requestData.getString("subjectName"))
+                    put("contentType", requestData.getString("contentType"))
+                    put("mimeType", requestData.getString("mimeType"))
+                    put(
+                        "base64Image",
+                        "${currentCapturedImage!!.take(100)}... (${currentCapturedImage!!.length} chars)"
+                    )
+                }
+                Log.d("AiMasterDrawer", "Request preview: $sampleRequest")
+            } catch (e: Exception) {
+                Log.e("AiMasterDrawer", "Error creating request preview", e)
+            }
+
+            // ✅ Show dialog with loading state
+            createAndShowDialogWithImageSearch()
+
+            // ✅ Make streaming API request
+            makeStreamingRequest(requestJson)
         }
-
-        // ✅ Show dialog with loading state
-        createAndShowDialogWithImageSearch()
-
-        // ✅ Make streaming API request
-        makeStreamingRequest(requestJson)
     }
 
     /*
@@ -1553,31 +1611,57 @@ class AiMasterDrawer(
                 )
             )
         }
+
         setupViews(view)
         setupSpinners()
 
-        // ✅ Force select Demo, General, and Lesson Plan
-        val demoIndex = classesData.indexOfFirst { it.Class.equals("Demo", ignoreCase = true) }
-        if (demoIndex != -1) {
-            classSpinner.setSelection(demoIndex + 1)
+        // Use coroutine to ensure proper sequencing
+        coroutineScope.launch {
+            // Small delay to ensure UI is ready
+            delay(50)
+
+            withContext(Dispatchers.Main) {
+                // ✅ Force select Miscellaneous class
+                val miscIndex = classesData.indexOfFirst { it.Class.equals("Miscellaneous", ignoreCase = true) }
+                if (miscIndex != -1) {
+                    classSpinner.setSelection(miscIndex + 1)
+
+                    // Manually trigger the class selection listener
+                    selectedClass = classesData[miscIndex]
+                    setupSubjectSpinner()
+
+                    // Small delay for subject spinner to update
+                    delay(50)
+
+                    // ✅ Force select the subject
+                    val targetSubject = selectedClass?.subjects?.find { it.name.equals("General", ignoreCase = true) }
+                        ?: selectedClass?.subjects?.firstOrNull()
+
+                    if (targetSubject != null) {
+                        // Get the current subject names from the spinner
+                        val subjectAdapter = subjectSpinner.adapter
+                        for (i in 0 until subjectAdapter.count) {
+                            val item = subjectAdapter.getItem(i) as? String
+                            if (item != null && item.equals(targetSubject.name, ignoreCase = true)) {
+                                subjectSpinner.setSelection(i)
+                                selectedSubject = targetSubject
+                                Log.d("AiMasterDrawer", "Auto-selected subject: ${targetSubject.name}")
+                                break
+                            }
+                        }
+                    }
+                }
+
+                // ✅ Force select Lesson Plan option
+                val lessonPlanIndex = options.indexOfFirst { it.equals("Lesson Plan", ignoreCase = true) }
+                if (lessonPlanIndex != -1) {
+                    optionSpinner.setSelection(lessonPlanIndex + 1)
+                }
+
+                showLoadingSkeleton()
+                animatedBorderView.startAnimation()
+            }
         }
-
-        val generalIndex = selectedClass?.subjects?.indexOfFirst {
-            it.name.equals("General", ignoreCase = true)
-        } ?: -1
-        if (generalIndex != -1) {
-            subjectSpinner.setSelection(generalIndex + 1)
-        }
-
-        val lessonPlanIndex = options.indexOfFirst { it.equals("Lesson Plan", ignoreCase = true) }
-        if (lessonPlanIndex != -1) {
-            optionSpinner.setSelection(lessonPlanIndex + 1)
-        }
-
-        showLoadingSkeleton()
-
-        // ✅ Start animated border
-        animatedBorderView.startAnimation()
 
         dialog?.setContentView(borderContainer)
 
@@ -1613,5 +1697,4 @@ class AiMasterDrawer(
         dialog?.show()
 
         Log.d("AiMasterDrawer", "Dialog shown with image search configuration")
-    }
-}
+    }}
